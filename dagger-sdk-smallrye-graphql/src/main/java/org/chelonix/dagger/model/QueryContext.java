@@ -12,6 +12,7 @@ import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.JsonbConfig;
 import org.apache.commons.lang3.reflect.TypeUtils;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -63,9 +64,20 @@ public class QueryContext {
             return field;
         });
         Document query = document(operation(operation));
-        // System.out.println(query.build());
+        System.out.println(String.format("Running query: %s", query.build()));
         Response response = client.executeSync(query);
-        return JsonPath.parse(response.getData().toString()).read(path, klass);
+        if (Scalar.class.isAssignableFrom(klass)) {
+            // FIXME scalar could not be other types than String in the future
+            String value = JsonPath.parse(response.getData().toString()).read(path, String.class);
+            try {
+                return klass.getConstructor(String.class).newInstance(value);
+            } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException nsme) {
+                // FIXME
+                throw new RuntimeException(nsme);
+            }
+        } else {
+            return JsonPath.parse(response.getData().toString()).read(path, klass);
+        }
     }
 
     <T> List<T> executeListQuery(Class<T> klass) throws ExecutionException, InterruptedException {
@@ -90,7 +102,6 @@ public class QueryContext {
             obj = obj.getJsonObject(pathElts.get(i));
         }
         JsonArray array = obj.getJsonArray(pathElts.get(pathElts.size() - 1));
-        System.out.println(array);
         JsonbConfig config = new JsonbConfig().withPropertyVisibilityStrategy(new PrivateVisibilityStrategy());
         Jsonb jsonb = JsonbBuilder.newBuilder().withConfig(config).build();
         List<T> rv = jsonb.fromJson(array.toString(), TypeUtils.parameterize(List.class, klass));

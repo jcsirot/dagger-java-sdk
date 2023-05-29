@@ -16,6 +16,17 @@ import static org.apache.commons.lang3.StringUtils.capitalize;
 
 public class CodegenVisitor implements SchemaVisitor {
 
+    private static final Map<String, String> customScalar = new HashMap<>() {{
+        put("Container", "ContainerID");
+        put("File", "FileID");
+        put("Directory", "DirectoryID");
+        put("Secret", "SecretID");
+        put("Socket","SocketID");
+        put("CacheVolume","CacheID");
+        put("Project","ProjectID");
+        put("ProjectCommand", "ProjectCommandID");
+    }};
+
     private Function<String, Writer> writerProvider;
 
     public CodegenVisitor(Function<String, Writer> writerProvider) {
@@ -28,10 +39,10 @@ public class CodegenVisitor implements SchemaVisitor {
              Writer writer = writerProvider.apply(String.format("org/chelonix/dagger/sdk/client/%s.java", type.getName())))
         {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
-            Map<String, String> data = new HashMap<>(){{
+            Map<String, Object> data = new HashMap<>(){{
                 put("packageName", "org.chelonix.dagger.sdk.client");
                 put("scalarType", "String");
-                put("className", type.getName());
+                put("className", formatTypeName(type));
                 put("classDescription", type.getDescription());
             }};
             writer.write(tmpl.execute(data));
@@ -47,7 +58,7 @@ public class CodegenVisitor implements SchemaVisitor {
 
         public TypeScalarFieldContext(Field field) {
             this.fieldName = field.getName();
-            this.fieldType = formatInputType(field.getTypeRef(), "");
+            this.fieldType = formatType(field.getTypeRef(), false);
             this.setter = "set" + capitalize(field.getName());
         }
     }
@@ -63,7 +74,7 @@ public class CodegenVisitor implements SchemaVisitor {
         public TypeFieldContext(Field field) {
             this.fieldName = field.getName();
             this.fieldDescription = field.getDescription().replace("\n", "<br/>");;
-            this.returnType = formatInputType(field.getTypeRef(), "");
+            this.returnType = formatOutputType(field.getTypeRef());
             this.args = field.getArgs().stream().map(FieldArgContext::new).toList();
             this.isScalar = field.getTypeRef().isScalar();
             this.continueChaining = !field.getTypeRef().isScalar() && !field.getTypeRef().isList();
@@ -76,7 +87,7 @@ public class CodegenVisitor implements SchemaVisitor {
         public String argDescription;
 
         public FieldArgContext(InputValue arg) {
-            this.argType = formatInputType(arg.getType(), "");
+            this.argType = formatArgumentType(arg.getType());
             this.argName = arg.getName();
             this.argDescription = arg.getDescription().replace("\n", "<br/>");
         }
@@ -90,7 +101,9 @@ public class CodegenVisitor implements SchemaVisitor {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
             Map<String, Object> data = new HashMap<>(){{
                 put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", type.getName());
+                put("className", formatTypeName(type));
+                put("isClientClass", "Query".equals(type.getName()));
+                put("isArgument", customScalar.containsKey(type.getName()));
                 put("classDescription", type.getDescription());
                 put("scalarFields", type.getFields().stream().filter(f -> f.getTypeRef().isScalar()).map(TypeScalarFieldContext::new).toList());
                 put("fields", type.getFields().stream().map(TypeFieldContext::new).toList());
@@ -101,9 +114,28 @@ public class CodegenVisitor implements SchemaVisitor {
         }
     }
 
-    private static String formatInputType(TypeRef typeRef, String representation) {
+    private static String formatTypeName(Type type) {
+        if ("Query".equals(type.getName())) {
+            return "Client";
+        } else {
+            return capitalize(type.getName());
+        }
+    }
+
+    private static String formatOutputType(TypeRef typeRef) {
+        return formatType(typeRef, false);
+    }
+
+    private static String formatArgumentType(TypeRef typeRef) {
+        return formatType(typeRef, true);
+    }
+
+    private static String formatType(TypeRef typeRef, boolean isArgument) {
         if (typeRef == null) {
             return "void";
+        }
+        if ("Query".equals(typeRef.getName())) {
+            return "Client";
         }
         switch (typeRef.getKind()) {
             case SCALAR -> {
@@ -118,6 +150,9 @@ public class CodegenVisitor implements SchemaVisitor {
                         return "Integer";
                     }
                     default -> {
+                        if (typeRef.getName().endsWith("ID") && isArgument) {
+                            return typeRef.getName().substring(0, typeRef.getName().length() - 2);
+                        }
                         return typeRef.getName();
                     }
                 }
@@ -126,10 +161,10 @@ public class CodegenVisitor implements SchemaVisitor {
                 return typeRef.getName();
             }
             case LIST -> {
-                return String.format("List<%s>", formatInputType(typeRef.getOfType(), representation));
+                return String.format("List<%s>", formatType(typeRef.getOfType(), isArgument));
             }
             default -> {
-                return formatInputType(typeRef.getOfType(), representation);
+                return formatType(typeRef.getOfType(), isArgument);
             }
         }
     }
@@ -158,10 +193,10 @@ public class CodegenVisitor implements SchemaVisitor {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
             Map<String, Object> data = new HashMap<>(){{
                 put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", type.getName());
+                put("className", formatTypeName(type));
                 put("classDescription", type.getDescription());
                 put("fields", type.getInputFields().stream()
-                        .map(v -> new InputValueContext(v.getName(), v.getDescription(), formatInputType(v.getType(), "")))
+                        .map(v -> new InputValueContext(v.getName(), v.getDescription(), formatType(v.getType(), false)))
                         .toList());
             }};
             System.out.println(tmpl.execute(data));
@@ -178,7 +213,7 @@ public class CodegenVisitor implements SchemaVisitor {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
             Map<String, Object> data = new HashMap<>(){{
                 put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", type.getName());
+                put("className", formatTypeName(type));
                 put("classDescription", type.getDescription());
                 put("fields", type.getEnumValues().stream().map(v -> v.getName().toUpperCase()).sorted().toList());
             }};

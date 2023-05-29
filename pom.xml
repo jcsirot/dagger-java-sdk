@@ -43,11 +43,6 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
-                <artifactId>commons-text</artifactId>
-                <version>${commons-text.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang.version}</version>
             </dependency>
@@ -81,7 +76,6 @@
         <smallrye-graphql.version>2.2.0</smallrye-graphql.version>
         <jakarta.json-api.version>2.1.2</jakarta.json-api.version>
         <jmustache.version>1.15</jmustache.version>
-        <commons-text.version>1.9</commons-text.version>
         <commons-lang.version>3.12.0</commons-lang.version>
         <tree.version>0.2.5</tree.version>
     </properties>

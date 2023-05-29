@@ -6,10 +6,9 @@ import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
 import org.chelonix.dagger.model.Client;
 import org.chelonix.dagger.model.Container;
-import org.chelonix.dagger.model.EnvVariable;
+import org.chelonix.dagger.model.Directory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -68,17 +67,23 @@ public class Main {
         System.out.println(defaultPlatform);
 
 
-        Container container = client.container()
-                .from("alpine")
-                .withExec("apk", "add", "curl")
-                .withExec("curl", "https://example.com");
+//        Container container = client.container()
+//                .from("alpine")
+//                .withExec("apk", "add", "curl")
+//                .withExec("curl", "https://example.com");
 
         // String result = container.stdout();
 
         // System.out.println(result);
 
-        List<EnvVariable> env = client.container().from("alpine").envVariables();
-        env.stream().map(var -> String.format("%s=%s", var.name(), var.value())).forEach(System.out::println);
+//        List<EnvVariable> env = client.container().from("alpine").envVariables();
+//        env.stream().map(var -> String.format("%s=%s", var.name(), var.value())).forEach(System.out::println);
+
+        Directory repo = client.git("https://github.com/dagger/dagger").tag("v0.3.0").tree();
+        Container daggerImg = client.container().build(repo);
+        stdout = daggerImg.withExec("version").stdout();
+
+        System.out.println(stdout);
 
         System.exit(0);
     }
