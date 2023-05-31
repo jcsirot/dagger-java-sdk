@@ -7,9 +7,9 @@ import java.util.List;
 /**
  * {{ classDescription }}
  */
-public class {{ className }}{{#isArgument}} implements Argument{{/isArgument}} {
+public class {{ className }}{{#isArgument}} implements ArgValue{{/isArgument}} {
 
-    private QueryContext context;
+    private QueryContext queryContext;
 
 {{#scalarFields}}
     private {{ fieldType }} {{ fieldName }};
@@ -17,15 +17,15 @@ public class {{ className }}{{#isArgument}} implements Argument{{/isArgument}} {
 
 {{#isClientClass}}
     public {{ className }}(DynamicGraphQLClient graphQLClient) {
-        this.context = new QueryContext(graphQLClient);
+        this.queryContext = new QueryContext(graphQLClient);
     }
 
 {{/isClientClass}}
     /** Empty constructor for JSON-B deserialization */
     {{ className }}() {}
 
-    {{ className }}(QueryContext context) {
-        this.context = context;
+    {{ className }}(QueryContext queryContext) {
+        this.queryContext = queryContext;
     }
 
 {{#scalarFields}}
@@ -36,28 +36,89 @@ public class {{ className }}{{#isArgument}} implements Argument{{/isArgument}} {
 {{/scalarFields}}
 
 {{#fields}}
+    {{#hasOptionalArguments}}
+    public static class {{ fieldAsClassName }}Arguments {
+        {{#optionalArgs}}
+        {{ argType }} {{ argName }};
+        {{/optionalArgs}}
+
+        private {{ fieldAsClassName }}Arguments() {}
+
+        public static {{ fieldAsClassName }}ArgumentsBuilder newBuilder() {
+            {{ fieldAsClassName }}Arguments args = new {{ fieldAsClassName }}Arguments();
+            return new {{ fieldAsClassName }}ArgumentsBuilder(args);
+        }
+
+        public Map<String, ArgValue> toArguments() {
+            HashMap<String, ArgValue> map = new HashMap<>();
+            {{#optionalArgs}}
+            map.put("{{ argName }}", ArgValue.arg(this.{{ argName }}));
+            {{/optionalArgs}}
+            return map;
+        }
+    }
+
+    public static class {{ fieldAsClassName }}ArgumentsBuilder {
+        private {{ fieldAsClassName }}Arguments arguments;
+
+        {{ fieldAsClassName }}ArgumentsBuilder({{ fieldAsClassName }}Arguments arguments) {
+            this.arguments = arguments;
+        }
+
+        {{#optionalArgs}}
+        public {{ fieldAsClassName }}ArgumentsBuilder with{{ argNameCapitalized }}({{ argType }} {{ argName }}) {
+            arguments.{{ argName }} = {{ argName }};
+        }
+        {{/optionalArgs}}
+
+        public {{ fieldAsClassName }}Arguments build() {
+            return this.arguments;
+        }
+    }
+    {{/hasOptionalArguments}}
+
     /**
      * <p>{{ fieldDescription }}</p>
      *
-    {{#args}}
+    {{#mandatoryArgs}}
      * @param {{ argName }} {{ argDescription }}
-    {{/args}}
+    {{/mandatoryArgs}}
+    {{#hasOptionalArguments}}
+     * @param optArgs optional arguments. See {@link {{ packageName }}.{{ fieldAsClassName }}Arguments {{ fieldAsClassName }}Arguments}
+    {{/hasOptionalArguments}}
      */
-    public {{ returnType }} {{ fieldName }}({{#args}}{{ argType }} {{argName}}{{^-last}}, {{/-last}}{{/args}}) {
+    public {{ returnType }} {{ fieldName }}({{#mandatoryArgs}}{{ argType }} {{argName}}{{^-last}}, {{/-last}}{{#hasMandatoryArguments}}, {{/hasMandatoryArguments}}{{/mandatoryArgs}}{{#hasOptionalArguments}}{{ fieldAsClassName }}Arguments optArgs{{/hasOptionalArguments}}) {
         {{#isScalar}}
         if ({{ fieldName }} != null) {
             return {{ fieldName }};
         }
         {{/isScalar}}
-        // QueryContext ctx = context.append(new QueryPart("{{ fieldName }}"));
+        {{#hasArguments}}
+        Map<String, ArgValue> argMap = new HashMap<>();
+        {{/hasArguments}}
+        {{#mandatoryArgs}}
+        argMap.put("{{argName}}", arg({{argName}}));
+        {{/mandatoryArgs}}
+        {{#hasOptionalArguments}}
+        argMap.putAll(optArgs.toArguments());
+        {{/hasOptionalArguments}}
+        QueryContext ctx = queryContext.chain(new QueryPart("{{ fieldName }}"{{#hasArguments}}, argMap{{/hasArguments}}));
         {{#continueChaining}}
-        QueryContext ctx = context.chain(new QueryPart("{{ fieldName }}"));
         return new {{ returnType }}(ctx);
         {{/continueChaining}}
-        {{#scalar}}
-        return context.chain(new QueryPart("{{ fieldName }}")).executeQuery({{ returnType }}.class);
-        {{/scalar}}
-        // return ...
+        {{#executeQuery}}
+        {{ returnType }} r;
+        {{#returnList}}
+        r = ctx.executeListQuery({{ returnListElementType }}.class);
+        {{/returnList}}
+        {{#notReturnList}}
+        r = ctx.executeQuery({{ returnType }}.class);
+        {{/notReturnList}}
+        {{#isIdType}}
+        r = this;
+        {{/isIdType}}
+        return r;
+        {{/executeQuery}}
     }
 {{/fields}}
 

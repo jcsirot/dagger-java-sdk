@@ -37,6 +37,10 @@
             <artifactId>jmustache</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.jknack</groupId>
+            <artifactId>handlebars</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
@@ -59,7 +63,6 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <graphql-maven-plugin.version>2.0RC1</graphql-maven-plugin.version>
     </properties>
 
 </project>

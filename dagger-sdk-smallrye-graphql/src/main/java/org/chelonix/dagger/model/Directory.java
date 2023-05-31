@@ -1,6 +1,6 @@
 package org.chelonix.dagger.model;
 
-public class Directory implements ArgType {
+public class Directory implements ArgValue {
 
     private QueryContext queryContext;
 

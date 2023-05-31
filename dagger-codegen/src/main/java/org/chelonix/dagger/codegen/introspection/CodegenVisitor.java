@@ -1,5 +1,7 @@
 package org.chelonix.dagger.codegen.introspection;
 
+import com.github.jknack.handlebars.Handlebars;
+import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
@@ -17,14 +19,14 @@ import static org.apache.commons.lang3.StringUtils.capitalize;
 public class CodegenVisitor implements SchemaVisitor {
 
     private static final Map<String, String> customScalar = new HashMap<>() {{
-        put("Container", "ContainerID");
-        put("File", "FileID");
-        put("Directory", "DirectoryID");
-        put("Secret", "SecretID");
-        put("Socket","SocketID");
-        put("CacheVolume","CacheID");
-        put("Project","ProjectID");
-        put("ProjectCommand", "ProjectCommandID");
+        put("ContainerID", "Container");
+        put("FileID", "File");
+        put("DirectoryID", "Directory");
+        put("SecretID", "Secret");
+        put("SocketID","Socket");
+        put("CacheVolumeID","Cache");
+        put("ProjectID","Project");
+        put("ProjectCommandID", "ProjectCommand");
     }};
 
     private Function<String, Writer> writerProvider;
@@ -65,31 +67,54 @@ public class CodegenVisitor implements SchemaVisitor {
 
     static class TypeFieldContext {
         public String fieldName;
+        public String fieldAsClassName;
         public String fieldDescription;
         public String returnType;
-        public List<FieldArgContext> args;
+        public List<FieldArgContext> args, optionalArgs, mandatoryArgs;
+        public boolean hasArguments, hasOptionalArguments, hasMandatoryArguments;
         public boolean isScalar;
         public boolean continueChaining;
+        public boolean executeQuery;
+        public boolean returnList, notReturnList;
+        public boolean isId;
+        public boolean isIdType;
+        public String returnListElementType;
 
         public TypeFieldContext(Field field) {
             this.fieldName = field.getName();
+            this.fieldAsClassName = capitalize(field.getName());
             this.fieldDescription = field.getDescription().replace("\n", "<br/>");;
-            this.returnType = formatOutputType(field.getTypeRef());
-            this.args = field.getArgs().stream().map(FieldArgContext::new).toList();
+            this.isId = "id".equals(field.getName());
             this.isScalar = field.getTypeRef().isScalar();
+            this.isIdType = !this.isId && this.isScalar && field.getParentObject().getName().equals(customScalar.get(field.getTypeRef().getTypeName()));
+            this.returnType = isId ? formatOutputType(field.getTypeRef()) : formatInputType(field.getTypeRef());
+            this.args = field.getArgs().stream().map(FieldArgContext::new).toList();
+            this.optionalArgs = field.getArgs().stream().map(FieldArgContext::new).filter(a-> a.isOptional).toList();
+            this.mandatoryArgs = field.getArgs().stream().map(FieldArgContext::new).filter(a-> !a.isOptional).toList();
+            this.hasArguments = !this.args.isEmpty();
+            this.hasOptionalArguments = !this.optionalArgs.isEmpty();
+            this.hasMandatoryArguments = !this.mandatoryArgs.isEmpty();
             this.continueChaining = !field.getTypeRef().isScalar() && !field.getTypeRef().isList();
+            this.executeQuery = !continueChaining;
+            this.returnList = field.getTypeRef().isList();
+            this.notReturnList = !returnList;
+            this.returnListElementType = field.getTypeRef().isList() ? field.getTypeRef().getListElementType().getName() : "null";
         }
     }
 
     static class FieldArgContext {
         public String argType;
         public String argName;
+        public String argNameCapitalized;
         public String argDescription;
+        public boolean isOptional;
 
         public FieldArgContext(InputValue arg) {
-            this.argType = formatArgumentType(arg.getType());
+            this.argType = formatInputType(arg.getType());
             this.argName = arg.getName();
+            this.argNameCapitalized = capitalize(argName);
             this.argDescription = arg.getDescription().replace("\n", "<br/>");
+            this.isOptional = arg.getType().isOptional();
         }
     }
 
@@ -99,11 +124,12 @@ public class CodegenVisitor implements SchemaVisitor {
              Writer writer = writerProvider.apply(String.format("org/chelonix/dagger/sdk/client/%s.java", type.getName())))
         {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
+            //com.github.jknack.handlebars.Template tmpl = new Handlebars(new ClassPathTemplateLoader("/templates", ".mustache")).compile("object");
             Map<String, Object> data = new HashMap<>(){{
                 put("packageName", "org.chelonix.dagger.sdk.client");
                 put("className", formatTypeName(type));
                 put("isClientClass", "Query".equals(type.getName()));
-                put("isArgument", customScalar.containsKey(type.getName()));
+                put("isArgument", customScalar.containsValue(type.getName()));
                 put("classDescription", type.getDescription());
                 put("scalarFields", type.getFields().stream().filter(f -> f.getTypeRef().isScalar()).map(TypeScalarFieldContext::new).toList());
                 put("fields", type.getFields().stream().map(TypeFieldContext::new).toList());
@@ -126,11 +152,11 @@ public class CodegenVisitor implements SchemaVisitor {
         return formatType(typeRef, false);
     }
 
-    private static String formatArgumentType(TypeRef typeRef) {
+    private static String formatInputType(TypeRef typeRef) {
         return formatType(typeRef, true);
     }
 
-    private static String formatType(TypeRef typeRef, boolean isArgument) {
+    private static String formatType(TypeRef typeRef, boolean isInput) {
         if (typeRef == null) {
             return "void";
         }
@@ -150,7 +176,7 @@ public class CodegenVisitor implements SchemaVisitor {
                         return "Integer";
                     }
                     default -> {
-                        if (typeRef.getName().endsWith("ID") && isArgument) {
+                        if (typeRef.getName().endsWith("ID") && isInput) {
                             return typeRef.getName().substring(0, typeRef.getName().length() - 2);
                         }
                         return typeRef.getName();
@@ -161,10 +187,10 @@ public class CodegenVisitor implements SchemaVisitor {
                 return typeRef.getName();
             }
             case LIST -> {
-                return String.format("List<%s>", formatType(typeRef.getOfType(), isArgument));
+                return String.format("List<%s>", formatType(typeRef.getOfType(), isInput));
             }
             default -> {
-                return formatType(typeRef.getOfType(), isArgument);
+                return formatType(typeRef.getOfType(), isInput);
             }
         }
     }

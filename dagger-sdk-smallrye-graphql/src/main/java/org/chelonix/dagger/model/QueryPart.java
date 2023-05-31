@@ -12,21 +12,21 @@ import static io.smallrye.graphql.client.core.Field.field;
 
 class QueryPart {
     private String operation;
-    private Map<String, ArgType> arguments;
+    private Map<String, ArgValue> arguments;
 
-    QueryPart(String operation, Map<String, ArgType> arguments) {
+    QueryPart(String operation, Map<String, ArgValue> arguments) {
         this.operation = operation;
         this.arguments = arguments;
     }
 
-    QueryPart(String operation, String argName, ArgType argValue) {
+    QueryPart(String operation, String argName, ArgValue argValue) {
         this.operation = operation;
         this.arguments = new HashMap<>() {{
             put(argName, argValue);
         }};
     }
 
-    QueryPart(String operation, String argName1, ArgType argValue1, String argName2, ArgType argValue2) {
+    QueryPart(String operation, String argName1, ArgValue argValue1, String argName2, ArgValue argValue2) {
         this.operation = operation;
         this.arguments = new HashMap<>() {{
             put(argName1, argValue1);

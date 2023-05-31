@@ -49,4 +49,23 @@ public class TypeRef {
         }
         return ref.kind == TypeKind.LIST;
     }
+
+    public TypeRef getListElementType() {
+        if (!isList()) {
+            throw new IllegalArgumentException("Type is not a list");
+        }
+        TypeRef ref = this;
+        while (ref.kind == TypeKind.NON_NULL || ref.kind == TypeKind.LIST) {
+            ref = ref.ofType;
+        }
+        return ref;
+    }
+
+    public String getTypeName() {
+        TypeRef ref = this;
+        if (ref.kind == TypeKind.NON_NULL) {
+            ref = ofType;
+        }
+        return ref.getName();
+    }
 }

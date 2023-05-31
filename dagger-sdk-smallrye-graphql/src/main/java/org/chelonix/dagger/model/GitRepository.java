@@ -1,6 +1,6 @@
 package org.chelonix.dagger.model;
 
-import static org.chelonix.dagger.model.ArgType.arg;
+import static org.chelonix.dagger.model.ArgValue.arg;
 
 public class GitRepository {
 
