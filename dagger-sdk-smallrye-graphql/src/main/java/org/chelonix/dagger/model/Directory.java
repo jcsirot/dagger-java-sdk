@@ -9,7 +9,7 @@ public class Directory implements ArgValue {
     }
 
     public DirectoryID id() throws Exception {
-        return queryContext.chain(new QueryPart("id")).executeQuery(DirectoryID.class);
+        return queryContext.chain("id").executeQuery(DirectoryID.class);
     }
 
     @Override

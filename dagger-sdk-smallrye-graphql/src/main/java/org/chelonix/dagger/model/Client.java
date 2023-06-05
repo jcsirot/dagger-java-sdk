@@ -74,32 +74,22 @@ public class Client {
     }
 
     public Container container() {
-        QueryContext ctx = queryContext.chain(new QueryPart("container"));
+        QueryContext ctx = queryContext.chain("container");
         return new Container(ctx);
     }
 
     public Container container(ContainerArguments containerArguments) {
-        QueryContext ctx = queryContext.chain(new QueryPart("container", containerArguments.toArguments()));
+        QueryContext ctx = queryContext.chain("container", containerArguments.toArguments());
         return new Container(ctx);
     }
 
-    public Container container(ContainerID id) {
-        return new Container(queryContext.chain(new QueryPart("container", "containerID", arg(id))));
-    }
-    public Container container(String platform) {
-        return new Container(queryContext.chain(new QueryPart("container", "platform", arg(platform))));
-    }
-//    public Container container(String id, String platform) {
-//        return new Container(context.chain(new QueryPart("container", "containerID", id, "platform", platform)));
-//    }
-
     public GitRepository git(String url) {
-        QueryContext ctx = queryContext.chain(new QueryPart("git", "url", arg(url)));
+        QueryContext ctx = queryContext.chain("git", "url", arg(url));
         return new GitRepository(ctx);
         // return ...
     }
 
     public String defaultPlatform() throws ExecutionException, InterruptedException {
-        return queryContext.chain(new QueryPart("defaultPlatform")).executeQuery(String.class);
+        return queryContext.chain("defaultPlatform").executeQuery(String.class);
     }
 }

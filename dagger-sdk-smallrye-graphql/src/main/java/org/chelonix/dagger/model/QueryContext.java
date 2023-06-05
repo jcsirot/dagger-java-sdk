@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.smallrye.graphql.client.Response;
 import io.smallrye.graphql.client.core.Document;
 import io.smallrye.graphql.client.core.Field;
+import io.smallrye.graphql.client.core.FieldOrFragment;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
@@ -16,56 +17,77 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static io.smallrye.graphql.client.core.Document.document;
+import static io.smallrye.graphql.client.core.Field.field;
 import static io.smallrye.graphql.client.core.Operation.operation;
 
-public class QueryContext {
+class QueryContext {
 
     private final DynamicGraphQLClient client;
     private final Deque<QueryPart> parts;
-    private List<String> finalOperations;
+    private List<QueryPart> leaves;
 
-    public QueryContext(DynamicGraphQLClient client) {
-        this(client, new LinkedList<>(), new ArrayList<>());
+    QueryContext(DynamicGraphQLClient client) {
+        this(client, new LinkedList<>());
     }
 
-    private QueryContext(DynamicGraphQLClient client, Deque<QueryPart> parts, List<String> finalOperations) {
+    private QueryContext(DynamicGraphQLClient client, Deque<QueryPart> parts) {
+        this(client, parts, new ArrayList<>());
+    }
+
+    private QueryContext(DynamicGraphQLClient client, Deque<QueryPart> parts, List<String> finalFields) {
         this.client = client;
         this.parts = parts;
-        this.finalOperations = finalOperations;
+        this.leaves = finalFields.stream().map(QueryPart::new).toList();
     }
 
-    public QueryContext chain(QueryPart part) {
-        Deque<QueryPart> list = new LinkedList<>();
-        list.addAll(this.parts);
-        list.push(part);
-        return new QueryContext(client, list, finalOperations);
+    QueryContext chain(String operation) {
+        return chain(operation, new HashMap<>());
     }
 
-    public QueryContext chain(QueryPart part, List<String> finalParts) {
+    QueryContext chain(String operation, String argName, ArgValue argValue) {
+        return chain(operation, new HashMap<>(){{
+            put(argName, argValue);
+        }});
+    }
+
+    QueryContext chain(String operation, Map<String, ArgValue> arguments) {
+        if (leaves != null && !leaves.isEmpty()) {
+            throw new IllegalStateException("A new field cannot be chained");
+        }
         Deque<QueryPart> list = new LinkedList<>();
         list.addAll(this.parts);
-        list.push(part);
-        List<String> list2 = new ArrayList<>();
-        list2.addAll(finalParts);
-        return new QueryContext(client, list, list2);
+        list.push(new QueryPart(operation, arguments));
+        return new QueryContext(client, list);
+    }
+
+    public QueryContext chain(String operation, List<String> leaves) {
+        if (!this.leaves.isEmpty()) {
+            throw new IllegalStateException("A new field cannot be chained");
+        }
+        Deque<QueryPart> list = new LinkedList<>();
+        list.addAll(this.parts);
+        list.push(new QueryPart(operation));
+        return new QueryContext(client, list, leaves);
+    }
+
+    public QueryContext chain(List<String> leaves) {
+        if (!this.leaves.isEmpty()) {
+            throw new IllegalStateException("A new field cannot be chained");
+        }
+        Deque<QueryPart> list = new LinkedList<>();
+        list.addAll(this.parts);
+        return new QueryContext(client, list, leaves);
     }
 
     <T> T executeQuery(Class<T> klass) throws ExecutionException, InterruptedException {
-        String path = parts.stream().map(QueryPart::getOperation).collect(Collectors.collectingAndThen(Collectors.toList(), list -> {
-            Collections.reverse(list);
-            return String.join(".", list);
-        }));
+        String path = StreamSupport.stream(Spliterators.spliteratorUnknownSize(parts.descendingIterator(), 0), false)
+                .map(QueryPart::getOperation)
+                .collect(Collectors.joining("."));
         System.out.println(path);
-        QueryPart terminal = parts.pop();
-        Field operation = parts.stream().map(QueryPart::toField).reduce(terminal.toField(), (acc, field) -> {
-            field.setFields(List.of(acc));
-            return field;
-        });
-        Document query = document(operation(operation));
-        System.out.println(String.format("Running query: %s", query.build()));
-        Response response = client.executeSync(query);
+        Response response = executeQuery();
         if (Scalar.class.isAssignableFrom(klass)) {
             // FIXME scalar could not be other types than String in the future
             String value = JsonPath.parse(response.getData().toString()).read(path, String.class);
@@ -80,15 +102,25 @@ public class QueryContext {
         }
     }
 
-    <T> List<T> executeListQuery(Class<T> klass) throws ExecutionException, InterruptedException {
-        List<String> pathElts = parts.stream().map(QueryPart::getOperation).collect(Collectors.collectingAndThen(Collectors.toList(), list -> {
-            Collections.reverse(list);
-            return list;
-        }));
+    Response executeQuery() throws ExecutionException, InterruptedException {
+        Field leafField = parts.pop().toField();
+        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> field(qp.getOperation())).toList());
+        Field operation = parts.stream().map(QueryPart::toField).reduce(leafField, (acc, field) -> {
+            field.setFields(List.of(acc));
+            return field;
+        });
+        Document query = document(operation(operation));
+        System.out.println(String.format("Running query: %s", query.build()));
+        return client.executeSync(query);
+    }
 
-        System.out.println(pathElts);
-        QueryPart terminal = parts.pop();
-        Field operation = parts.stream().map(QueryPart::toField).reduce(terminal.toField(finalOperations), (acc, field) -> {
+    <T> List<T> executeListQuery(Class<T> klass) throws ExecutionException, InterruptedException {
+        List<String> pathElts = StreamSupport.stream(Spliterators.spliteratorUnknownSize(parts.descendingIterator(), 0), false)
+                .map(QueryPart::getOperation)
+                .toList();
+        Field leafField = parts.pop().toField();
+        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> field(qp.getOperation())).toList());
+        Field operation = parts.stream().map(QueryPart::toField).reduce(leafField, (acc, field) -> {
             field.setFields(List.of(acc));
             return field;
         });

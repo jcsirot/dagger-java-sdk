@@ -7,10 +7,12 @@ import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
 import org.chelonix.dagger.model.Client;
 import org.chelonix.dagger.model.Container;
 import org.chelonix.dagger.model.Directory;
+import org.chelonix.dagger.model.EnvVariable;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static io.smallrye.graphql.client.core.Argument.arg;
 import static io.smallrye.graphql.client.core.Argument.args;
@@ -42,29 +44,29 @@ public class Main {
 //              }
 //            }""";
 
-        Document query = document(
-                operation(
-                        field("container",
-                                field("from", args(arg("address", "alpine:latest")),
-                                        field("envVariables",
-                                            field("name"), field("value")
-                                        )
-                                )
-                        )
-                )
-        );
-
-        System.out.println(query.build());
-        Response r = dynamicGraphQLClient.executeSync(query.build());
-        System.out.println(r);
+//        Document query = document(
+//                operation(
+//                        field("container",
+//                                field("from", args(arg("address", "alpine:latest")),
+//                                        field("envVariables",
+//                                            field("name"), field("value")
+//                                        )
+//                                )
+//                        )
+//                )
+//        );
+//
+//        System.out.println(query.build());
+//        Response r = dynamicGraphQLClient.executeSync(query.build());
+//        System.out.println(r);
 
         Client client = new Client(dynamicGraphQLClient);
 
-        String stdout = client.container().from("alpine:latest").withExec(List.of("uname", "-nrio")).stdout();
-        System.out.println(stdout);
-
-        String defaultPlatform = client.defaultPlatform();
-        System.out.println(defaultPlatform);
+//        String stdout = client.container().from("alpine:latest").withExec(List.of("uname", "-nrio")).stdout();
+//        System.out.println(stdout);
+//
+//        String defaultPlatform = client.defaultPlatform();
+//        System.out.println(defaultPlatform);
 
 
 //        Container container = client.container()
@@ -76,15 +78,34 @@ public class Main {
 
         // System.out.println(result);
 
-//        List<EnvVariable> env = client.container().from("alpine").envVariables();
-//        env.stream().map(var -> String.format("%s=%s", var.name(), var.value())).forEach(System.out::println);
+        // listEnvVariables(client);
 
-        Directory repo = client.git("https://github.com/dagger/dagger").tag("v0.3.0").tree();
-        Container daggerImg = client.container().build(repo);
-        stdout = daggerImg.withExec("version").stdout();
+        // gitVersionContainerID(client);
 
-        System.out.println(stdout);
+        runCommandWithSync(client);
 
         System.exit(0);
+    }
+
+    private static void listEnvVariables(Client client) throws Exception {
+        List<EnvVariable> env = client.container().from("alpine").envVariables();
+        env.stream().map(var -> String.format("%s=%s", var.name(), var.value())).forEach(System.out::println);
+    }
+
+    private static void gitVersionContainerID(Client client) throws ExecutionException, InterruptedException {
+        Directory repo = client.git("https://github.com/dagger/dagger").tag("v0.3.0").tree();
+        Container daggerImg = client.container().build(repo);
+        String stdout = daggerImg.withExec("version").stdout();
+        System.out.println(stdout);
+    }
+
+    private static void runCommandWithSync(Client client) throws ExecutionException, InterruptedException {
+        String stdout = client.container()
+                .from("alpine")
+                .withExec("apk", "add", "curl")
+                .sync()
+                .withExec("curl", "https://example.com")
+                .stdout();
+        System.out.println(stdout);
     }
 }

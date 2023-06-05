@@ -16,7 +16,7 @@ public class GitRepository {
      * @param name Tag's name (e.g., "v0.3.9").
      */
     public GitRef tag(String name) {
-        QueryContext ctx = queryContext.chain(new QueryPart("tag", "name", arg(name)));
+        QueryContext ctx = queryContext.chain("tag", "name", arg(name));
         return new GitRef(ctx);
         // return ...
     }

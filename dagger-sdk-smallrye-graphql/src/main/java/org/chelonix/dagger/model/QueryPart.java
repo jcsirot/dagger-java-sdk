@@ -3,6 +3,7 @@ package org.chelonix.dagger.model;
 import io.smallrye.graphql.client.core.Argument;
 import io.smallrye.graphql.client.core.Field;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,46 +12,32 @@ import static io.smallrye.graphql.client.core.Argument.arg;
 import static io.smallrye.graphql.client.core.Field.field;
 
 class QueryPart {
-    private String operation;
+
+    private String fieldName;
     private Map<String, ArgValue> arguments;
 
-    QueryPart(String operation, Map<String, ArgValue> arguments) {
-        this.operation = operation;
-        this.arguments = arguments;
+    QueryPart(String fieldName) {
+        this(fieldName, new HashMap<>());
     }
 
-    QueryPart(String operation, String argName, ArgValue argValue) {
-        this.operation = operation;
+    QueryPart(String fieldName, String argName, ArgValue argValue) {
+        this.fieldName = fieldName;
         this.arguments = new HashMap<>() {{
             put(argName, argValue);
         }};
     }
 
-    QueryPart(String operation, String argName1, ArgValue argValue1, String argName2, ArgValue argValue2) {
-        this.operation = operation;
-        this.arguments = new HashMap<>() {{
-            put(argName1, argValue1);
-            put(argName2, argValue2);
-        }};
+    QueryPart(String fieldName, Map<String, ArgValue> arguments) {
+        this.fieldName = fieldName;
+        this.arguments = arguments;
     }
 
-    QueryPart(String operation) {
-        this.operation = operation;
-        this.arguments = arguments = new HashMap<>();
-    }
-
-    public String getOperation() {
-        return operation;
+    String getOperation() {
+        return fieldName;
     }
 
     Field toField() {
         List<Argument> argList = arguments.entrySet().stream().map(e -> arg(e.getKey(), e.getValue().serialize())).toList();
-        return field(operation, argList);
-    }
-
-    Field toField(List<String> subops) {
-        List<Argument> argList = arguments.entrySet().stream().map(e -> arg(e.getKey(), e.getValue() instanceof Scalar ? ((Scalar<?>) e.getValue()).convert() : e.getValue())).toList();
-        Field[] fields = subops.stream().map(s -> field(s)).toArray(len -> new Field[len]);
-        return field(operation, argList, fields);
+        return field(fieldName, argList);
     }
 }

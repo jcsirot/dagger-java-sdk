@@ -1,7 +1,5 @@
 package org.chelonix.dagger.model;
 
-import java.util.List;
-
 /**
  * A simple key value object that represents an environment variable.
  */
@@ -26,7 +24,7 @@ public class EnvVariable {
         if (name != null) {
             return name;
         }
-        QueryContext ctx = context.chain(new QueryPart("name"));
+        QueryContext ctx = context.chain("name");
         // return ...
         return null;
     }
@@ -38,7 +36,7 @@ public class EnvVariable {
         if (value != null) {
             return value;
         }
-        QueryContext ctx = context.chain(new QueryPart("value"));
+        QueryContext ctx = context.chain("value");
         // return ...
         return null;
     }

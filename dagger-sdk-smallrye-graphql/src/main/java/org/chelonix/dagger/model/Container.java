@@ -15,37 +15,44 @@ public class Container implements ArgValue {
     }
 
     public Container from(String address) {
-        QueryContext ctx = queryCtx.chain(new QueryPart("from", "address", arg(address)));
+        QueryContext ctx = queryCtx.chain("from", "address", arg(address));
         return new Container(ctx);
     }
 
     public Container withExec(List<String> args) {
-        QueryContext ctx = queryCtx.chain(new QueryPart("withExec", "args", arg(args)));
+        QueryContext ctx = queryCtx.chain("withExec", "args", arg(args));
         return new Container(ctx);
     }
 
     public Container withExec(String ...args) {
-        QueryContext ctx = queryCtx.chain(new QueryPart("withExec", "args", arg(Arrays.asList(args))));
+        QueryContext ctx = queryCtx.chain("withExec", "args", arg(Arrays.asList(args)));
         return new Container(ctx);
     }
 
     public Container build(Directory context) {
-        QueryContext ctx = this.queryCtx.chain(new QueryPart("build", "context", context));
+        QueryContext ctx = this.queryCtx.chain("build", "context", context);
         return new Container(ctx);
     }
 
     public String stdout() throws ExecutionException, InterruptedException {
-        QueryContext ctx = queryCtx.chain(new QueryPart("stdout"));
+        QueryContext ctx = queryCtx.chain("stdout");
         return ctx.executeQuery(String.class);
     }
 
+    public Container sync() throws ExecutionException, InterruptedException {
+        QueryContext ctx = queryCtx.chain("sync");
+        ctx.executeQuery();
+        return this;
+    }
+
     public ContainerID id() throws Exception {
-        QueryContext ctx = queryCtx.chain(new QueryPart("id"));
+        QueryContext ctx = queryCtx.chain("id");
         return ctx.executeQuery(ContainerID.class);
     }
 
     public List<EnvVariable> envVariables() throws Exception {
-        QueryContext ctx = queryCtx.chain(new QueryPart("envVariables"), List.of("name", "value"));
+        QueryContext ctx = queryCtx.chain("envVariables");
+        ctx = ctx.chain(List.of("name", "value"));
         return ctx.executeListQuery(EnvVariable.class);
     }
 

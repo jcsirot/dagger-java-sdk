@@ -13,7 +13,7 @@ public class GitRef {
      *
      */
     public Directory tree() {
-        QueryContext ctx = queryContext.chain(new QueryPart("tree"));
+        QueryContext ctx = queryContext.chain("tree");
         return new Directory(ctx);
         // return ...
     }
