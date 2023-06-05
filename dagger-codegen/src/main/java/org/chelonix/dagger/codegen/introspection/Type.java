@@ -33,7 +33,7 @@ public class Type {
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description = description.replace("\n", "<br/>");
     }
 
     public List<EnumValue> getEnumValues() {

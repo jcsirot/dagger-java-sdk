@@ -1,6 +1,7 @@
 package org.chelonix.dagger.codegen.introspection;
 
 import jakarta.json.bind.annotation.JsonbProperty;
+import jakarta.json.bind.annotation.JsonbTransient;
 
 import java.util.List;
 
@@ -14,6 +15,9 @@ public class Field {
     @JsonbProperty("isDeprecated")
     private boolean deprecated; // isDeprecated
     private String DeprecationReason;
+
+    @JsonbTransient
+    private List<InputValue> optionalArgs;
 
     private Type parentObject;
 
@@ -30,7 +34,7 @@ public class Field {
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description = "<p>" + description.replace("\n", "<br/>") + "</p>";
     }
 
     public TypeRef getTypeRef() {
@@ -71,6 +75,28 @@ public class Field {
 
     public void setParentObject(Type parentObject) {
         this.parentObject = parentObject;
+    }
+
+    boolean hasArgs() {
+        return getArgs().size() > 0;
+    }
+
+    boolean hasOptionalArgs() {
+        return getArgs().stream().filter(arg -> arg.getType().isOptional()).count() > 0;
+    }
+
+    /**
+     * Returns the list of optional argument of this field
+     */
+    List<InputValue> getOptionalArgs() {
+        if (optionalArgs == null) {
+            optionalArgs = args.stream().filter(arg -> arg.getType().isOptional()).toList();
+        }
+        return optionalArgs;
+    }
+
+    List<InputValue> getRequiredArgs() {
+        return args.stream().filter(arg -> !arg.getType().isOptional()).toList();
     }
 
     @Override

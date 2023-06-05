@@ -4,7 +4,7 @@ public interface SchemaVisitor {
 
     void visitScalar(Type type);
 
-    void visitObject(Type type);
+    void visitObject(Type type, Schema schema);
 
     void visitInput(Type type);
 

@@ -65,7 +65,7 @@ public class Schema {
 
         filteredTypes.stream()
                 .filter(t -> t.getKind() == TypeKind.OBJECT)
-                .forEach(visitor::visitObject);
+                .forEach(t -> visitor.visitObject(t, this));
 
         filteredTypes.stream()
                 .filter(t -> t.getKind() == TypeKind.ENUM)

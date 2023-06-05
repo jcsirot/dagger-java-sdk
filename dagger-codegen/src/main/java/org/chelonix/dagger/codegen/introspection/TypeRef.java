@@ -42,12 +42,35 @@ public class TypeRef {
        return ref.kind == TypeKind.SCALAR || ref.kind == TypeKind.ENUM;
     }
 
+    public boolean isObject() {
+        TypeRef ref = this;
+        if (ref.kind == TypeKind.NON_NULL) {
+            ref = ref.ofType;
+        }
+        return ref.kind == TypeKind.OBJECT;
+    }
+
     public boolean isList() {
         TypeRef ref = this;
         if (ref.kind == TypeKind.NON_NULL) {
             ref = ref.ofType;
         }
         return ref.kind == TypeKind.LIST;
+    }
+
+    public boolean isListOfObject() {
+        TypeRef ref = this;
+        if (ref.kind == TypeKind.NON_NULL) {
+            ref = ref.ofType;
+        }
+        if (ref.kind != TypeKind.LIST) {
+            return false;
+        }
+        ref = ref.getOfType();
+        if (ref.kind == TypeKind.NON_NULL) {
+            ref = ref.ofType;
+        }
+        return ref.isObject();
     }
 
     public TypeRef getListElementType() {
@@ -59,6 +82,53 @@ public class TypeRef {
             ref = ref.ofType;
         }
         return ref;
+    }
+
+    public String formatOutput() {
+        return formatType(false);
+    }
+
+    public String formatInput() {
+        return formatType( true);
+    }
+
+    private String formatType(boolean isInput) {
+        // if (typeRef == null) {
+        //    return "void";
+        //}
+        if ("Query".equals(getName())) {
+            return "Client";
+        }
+        switch (getKind()) {
+            case SCALAR -> {
+                switch (getName()) {
+                    case "String" -> {
+                        return "String";
+                    }
+                    case "Boolean" -> {
+                        return "Boolean";
+                    }
+                    case "Int" -> {
+                        return "Integer";
+                    }
+                    default -> {
+                        if (getName().endsWith("ID") && isInput) {
+                            return getName().substring(0, getName().length() - 2);
+                        }
+                        return getName();
+                    }
+                }
+            }
+            case OBJECT, ENUM, INPUT_OBJECT -> {
+                return getName();
+            }
+            case LIST -> {
+                return String.format("List<%s>", getOfType().formatType(isInput));
+            }
+            default -> {
+                return getOfType().formatType(isInput);
+            }
+        }
     }
 
     public String getTypeName() {
