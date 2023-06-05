@@ -150,22 +150,22 @@ public class CodegenVisitor implements SchemaVisitor {
                         .addCode("this.queryContext = new QueryContext(graphQLClient);")
                         .build();
                 classBuilder.addMethod(constructor);
+            } else {
+                MethodSpec constructor = MethodSpec.constructorBuilder()
+                        .addJavadoc("Empty constructor for JSON-B deserialization")
+                        .build();
+                classBuilder.addMethod(constructor);
+
+                for (Field scalarField : type.getFields().stream().filter(f -> f.getTypeRef().isScalar()).toList()) {
+                    classBuilder.addField(ClassName.bestGuess(scalarField.getTypeRef().formatOutput()), scalarField.getName(), Modifier.PRIVATE);
+                }
             }
 
             MethodSpec constructor = MethodSpec.constructorBuilder()
-                    .addJavadoc("Empty constructor for JSON-B deserialization")
-                    .build();
-            classBuilder.addMethod(constructor);
-
-            constructor = MethodSpec.constructorBuilder()
                     .addParameter(ClassName.bestGuess("QueryContext"), "queryContext")
                     .addCode("this.queryContext = queryContext;")
                     .build();
             classBuilder.addMethod(constructor);
-
-            for (Field scalarField : type.getFields().stream().filter(f -> f.getTypeRef().isScalar()).toList()) {
-                classBuilder.addField(ClassName.bestGuess(scalarField.getTypeRef().formatOutput()), scalarField.getName(), Modifier.PRIVATE);
-            }
 
             for (Field field: type.getFields())
             {
@@ -203,7 +203,7 @@ public class CodegenVisitor implements SchemaVisitor {
         if ("import".equals(fieldAlias)) {
             fieldAlias = "importTarball";
         }
-        MethodSpec.Builder fieldMethodBuilder = MethodSpec.methodBuilder(fieldAlias);
+        MethodSpec.Builder fieldMethodBuilder = MethodSpec.methodBuilder(fieldAlias).addModifiers(Modifier.PUBLIC);
         TypeName returnType = ClassName.bestGuess("id".equals(field.getName()) ? field.getTypeRef().formatOutput() : field.getTypeRef().formatInput());
         fieldMethodBuilder.returns(returnType);
         List<ParameterSpec> mandatoryParams = field.getRequiredArgs().stream()
@@ -241,12 +241,14 @@ public class CodegenVisitor implements SchemaVisitor {
             List<Field> arrayFields = Helpers.getArrayField(field, schema);
             CodeBlock block = arrayFields.stream().map(f -> CodeBlock.of("$S", f.getName())).collect(CodeBlock.joining(",","List.of(", ")"));
             fieldMethodBuilder.addStatement("ctx = ctx.chain($L)", block);
-            fieldMethodBuilder.addStatement("ctx.executeListQuery($L.class)", returnType);
+            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)", returnType);
         } else if (isIdToConvert(field)) {
             fieldMethodBuilder.addStatement("ctx.executeQuery()");
             fieldMethodBuilder.addStatement("return this");
         } else if (field.getTypeRef().isObject()) {
             fieldMethodBuilder.addStatement("return new $L(ctx)", returnType);
+        } else {
+            fieldMethodBuilder.addStatement("return ctx.executeQuery($L.class)", returnType);
         }
 
         classBuilder.addMethod(fieldMethodBuilder.build());
