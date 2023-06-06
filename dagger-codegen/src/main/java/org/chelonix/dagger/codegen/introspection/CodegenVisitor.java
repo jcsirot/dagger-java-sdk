@@ -241,7 +241,8 @@ public class CodegenVisitor implements SchemaVisitor {
             List<Field> arrayFields = Helpers.getArrayField(field, schema);
             CodeBlock block = arrayFields.stream().map(f -> CodeBlock.of("$S", f.getName())).collect(CodeBlock.joining(",","List.of(", ")"));
             fieldMethodBuilder.addStatement("ctx = ctx.chain($L)", block);
-            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)", returnType);
+            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)",
+                    field.getTypeRef().getListElementType().getName());
         } else if (isIdToConvert(field)) {
             fieldMethodBuilder.addStatement("ctx.executeQuery()");
             fieldMethodBuilder.addStatement("return this");
