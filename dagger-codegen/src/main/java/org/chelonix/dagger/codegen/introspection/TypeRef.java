@@ -1,5 +1,11 @@
 package org.chelonix.dagger.codegen.introspection;
 
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.ParameterizedTypeName;
+import com.squareup.javapoet.TypeName;
+
+import java.util.List;
+
 public class TypeRef {
 
     private TypeKind kind;
@@ -84,46 +90,51 @@ public class TypeRef {
         return ref;
     }
 
-    public String formatOutput() {
+    public TypeName formatOutput() {
         return formatType(false);
     }
 
-    public String formatInput() {
+    public TypeName formatInput() {
         return formatType( true);
     }
 
-    private String formatType(boolean isInput) {
+    private TypeName formatType(boolean isInput) {
         // if (typeRef == null) {
         //    return "void";
         //}
         if ("Query".equals(getName())) {
-            return "Client";
+            return ClassName.bestGuess("Client");
         }
         switch (getKind()) {
             case SCALAR -> {
                 switch (getName()) {
                     case "String" -> {
-                        return "String";
+                        return ClassName.get(String.class);
                     }
                     case "Boolean" -> {
-                        return "Boolean";
+                        return ClassName.get(Boolean.class);
                     }
                     case "Int" -> {
-                        return "Integer";
+                        return ClassName.get(Integer.class);
                     }
                     default -> {
-                        if (getName().endsWith("ID") && isInput) {
-                            return getName().substring(0, getName().length() - 2);
+                        if (!isInput) {
+                            return ClassName.bestGuess(getName());
                         }
-                        return getName();
+                        return Helpers.convertScalarToObject(getName());
+//                        if (getName().endsWith("ID") && isInput) {
+//                            return getName().substring(0, getName().length() - 2);
+//                        }
+//                        return getName();
                     }
                 }
             }
             case OBJECT, ENUM, INPUT_OBJECT -> {
-                return getName();
+                return ClassName.bestGuess(getName());
             }
             case LIST -> {
-                return String.format("List<%s>", getOfType().formatType(isInput));
+                return ParameterizedTypeName.get(ClassName.get(List.class), getOfType().formatType(isInput));
+                // return String.format("List<%s>", getOfType().formatType(isInput));
             }
             default -> {
                 return getOfType().formatType(isInput);

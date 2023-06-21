@@ -6,8 +6,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.chelonix.dagger.model.ArgValue.arg;
-
 public class Client {
 
     private QueryContext queryContext;
@@ -43,11 +41,11 @@ public class Client {
             this.platform = platform;
         }
 
-        Map<String, ArgValue> toArguments() {
-            HashMap<String, ArgValue> map = new HashMap<>();
-            map.put("id", arg(this.id));
-            map.put("platform", arg(this.platform));
-            return map;
+        Arguments toArguments() {
+            Arguments.Builder builder = Arguments.newBuilder();
+            builder.add("id", this.id);
+            builder.add("platform", this.platform);
+            return builder.build();
         }
     }
 
@@ -84,7 +82,8 @@ public class Client {
     }
 
     public GitRepository git(String url) {
-        QueryContext ctx = queryContext.chain("git", "url", arg(url));
+        QueryContext ctx = queryContext.chain("git",
+                Arguments.newBuilder().add("url", url).build());
         return new GitRepository(ctx);
         // return ...
     }

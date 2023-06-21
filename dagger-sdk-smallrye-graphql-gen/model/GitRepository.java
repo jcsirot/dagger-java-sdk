@@ -1,7 +1,5 @@
 package org.chelonix.dagger.model;
 
-import static org.chelonix.dagger.model.ArgValue.arg;
-
 public class GitRepository {
 
     private QueryContext queryContext;
@@ -16,9 +14,9 @@ public class GitRepository {
      * @param name Tag's name (e.g., "v0.3.9").
      */
     public GitRef tag(String name) {
-        QueryContext ctx = queryContext.chain("tag", "name", arg(name));
+        QueryContext ctx = queryContext.chain("tag",
+                Arguments.newBuilder().add("name", name).build());
         return new GitRef(ctx);
         // return ...
     }
-
 }

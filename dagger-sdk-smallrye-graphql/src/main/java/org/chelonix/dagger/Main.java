@@ -1,24 +1,14 @@
 package org.chelonix.dagger;
 
-import io.smallrye.graphql.client.Response;
-import io.smallrye.graphql.client.core.Document;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
-import org.chelonix.dagger.model.Client;
-import org.chelonix.dagger.model.Container;
-import org.chelonix.dagger.model.Directory;
-import org.chelonix.dagger.model.EnvVariable;
+import org.chelonix.dagger.client.*;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-
-import static io.smallrye.graphql.client.core.Argument.arg;
-import static io.smallrye.graphql.client.core.Argument.args;
-import static io.smallrye.graphql.client.core.Document.document;
-import static io.smallrye.graphql.client.core.Field.field;
-import static io.smallrye.graphql.client.core.Operation.operation;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -74,38 +64,106 @@ public class Main {
 //                .withExec("apk", "add", "curl")
 //                .withExec("curl", "https://example.com");
 
-        // String result = container.stdout();
+        try {
+            // String result = container.stdout();
 
-        // System.out.println(result);
+            // System.out.println(result);
 
-        // listEnvVariables(client);
+            // listEnvVariables(client);
 
-        // gitVersionContainerID(client);
+            // gitVersionContainerID(client);
 
-        runCommandWithSync(client);
+            // runCommandWithSync(client);
+
+            // listHostDirectoryContents(client);
+
+            // mountHostDirectoryInContainer(client);
+
+            buildTimeVariables(client);
+        } catch (DaggerQueryException dqe) {
+            dqe.printStackTrace();
+            Arrays.stream(dqe.getErrors()).forEach(System.out::println);
+        }
 
         System.exit(0);
     }
 
     private static void listEnvVariables(Client client) throws Exception {
         List<EnvVariable> env = client.container().from("alpine").envVariables();
-        env.stream().map(var -> String.format("%s=%s", var.name(), var.value())).forEach(System.out::println);
+        env.stream().map(var -> {
+            try {
+                return String.format("%s=%s", var.name(), var.value());
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            } catch (DaggerQueryException e) {
+                throw new RuntimeException(e);
+            }
+        }).forEach(System.out::println);
     }
 
-    private static void gitVersionContainerID(Client client) throws ExecutionException, InterruptedException {
+    private static void gitVersionContainerID(Client client) throws ExecutionException, InterruptedException, DaggerQueryException {
         Directory repo = client.git("https://github.com/dagger/dagger").tag("v0.3.0").tree();
         Container daggerImg = client.container().build(repo);
-        String stdout = daggerImg.withExec("version").stdout();
+        String stdout = daggerImg.withExec(List.of("version")).stdout();
         System.out.println(stdout);
     }
 
-    private static void runCommandWithSync(Client client) throws ExecutionException, InterruptedException {
+    private static void runCommandWithSync(Client client) throws ExecutionException, InterruptedException, DaggerQueryException {
         String stdout = client.container()
                 .from("alpine")
-                .withExec("apk", "add", "curl")
+                .withExec(List.of("apk", "add", "curl"))
                 .sync()
-                .withExec("curl", "https://example.com")
+                .withExec(List.of("curl", "https://example.com"))
                 .stdout();
         System.out.println(stdout);
+    }
+
+    private static void listHostDirectoryContents(Client client) throws ExecutionException, InterruptedException, DaggerQueryException {
+        List<String> entries = client.host().directory(".").entries();
+        System.out.println(entries);
+    }
+
+    private static void mountHostDirectoryInContainer(Client client) throws ExecutionException, InterruptedException, DaggerQueryException {
+        String contents = client.container().from("alpine").
+                withDirectory("/host", client.host().directory(".")).
+                withExec(List.of("ls", "/host")).
+                stdout();
+        System.out.println(contents);
+    }
+
+    private static void buildTimeVariables(Client client) throws ExecutionException, InterruptedException, DaggerQueryException {
+        List<String> oses = List.of("linux", "darwin");
+        List<String> arches = List.of("amd64", "arm64");
+
+        Directory src = client.host().directory(".");
+        Directory outputs = client.directory();
+
+        Container golang = client.container()
+                // get golang image
+                .from("golang:latest")
+                // mount source code into golang image
+                .withDirectory("/src", src)
+                .withWorkdir("/src");
+
+        for (String os: oses) {
+            for (String arch: arches) {
+                // create a directory for each OS and architecture
+                String path = String.format("target/%s/%s/", os, arch);
+
+               Container build = golang
+                        // set GOARCH and GOOS in the build environment
+                        .withEnvVariable("GOOS", os)
+                        .withEnvVariable("GOARCH", arch)
+                        .withExec(List.of("go", "build", "-o", path));
+
+                // add build to outputs
+                outputs = outputs.withDirectory(path, build.directory(path));
+            }
+        }
+
+        // write build artifacts to host
+        outputs.export(".");
     }
 }

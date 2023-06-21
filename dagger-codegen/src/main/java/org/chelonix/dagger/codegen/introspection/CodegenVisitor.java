@@ -9,6 +9,7 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 import static org.apache.commons.lang3.StringUtils.capitalize;
@@ -54,13 +55,13 @@ public class CodegenVisitor implements SchemaVisitor {
     @Override
     public void visitScalar(Type type) {
         try (Reader reader = new InputStreamReader(getClass().getClassLoader().getResourceAsStream("templates/scalar.mustache"));
-             Writer writer = writerProvider.apply(String.format("org/chelonix/dagger/sdk/client/%s.java", type.getName())))
+             Writer writer = writerProvider.apply(String.format("org/chelonix/dagger/client/%s.java", type.getName())))
         {
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
             Map<String, Object> data = new HashMap<>(){{
-                put("packageName", "org.chelonix.dagger.sdk.client");
+                put("packageName", "org.chelonix.dagger.client");
                 put("scalarType", "String");
-                put("className", formatTypeName(type));
+                put("className", Helpers.formatTypeName(type));
                 put("classDescription", type.getDescription());
             }};
             writer.write(tmpl.execute(data));
@@ -71,7 +72,7 @@ public class CodegenVisitor implements SchemaVisitor {
 
     static class TypeScalarFieldContext {
         public String fieldName;
-        public String fieldType;
+        public TypeName fieldType;
         public String setter;
 
         public TypeScalarFieldContext(Field field) {
@@ -85,7 +86,7 @@ public class CodegenVisitor implements SchemaVisitor {
         public String fieldName;
         public String fieldAsClassName;
         public String fieldDescription;
-        public String returnType;
+        public TypeName returnType;
         public List<FieldArgContext> args, optionalArgs, mandatoryArgs;
         public boolean hasArguments, hasOptionalArguments, hasMandatoryArguments;
         public boolean isScalar;
@@ -119,7 +120,7 @@ public class CodegenVisitor implements SchemaVisitor {
     }
 
     static class FieldArgContext {
-        public String argType;
+        public TypeName argType;
         public String argName;
         public String argNameCapitalized;
         public String argDescription;
@@ -136,12 +137,15 @@ public class CodegenVisitor implements SchemaVisitor {
 
     @Override
     public void visitObject(Type type, Schema schema) {
+        String filename = String.format("org/chelonix/dagger/client/%s.java",
+                "Query".equals(type.getName()) ? "Client" : type.getName());
         try (Reader reader = new InputStreamReader(getClass().getClassLoader().getResourceAsStream("templates/object.mustache"));
-             Writer writer = writerProvider.apply(String.format("org/chelonix/dagger/sdk/client/%s.java", type.getName())))
+             Writer writer = writerProvider.apply(filename))
         {
-            TypeSpec.Builder classBuilder = TypeSpec.classBuilder(formatTypeName(type))
+            TypeSpec.Builder classBuilder = TypeSpec.classBuilder(Helpers.formatTypeName(type))
                     .addJavadoc(type.getDescription())
                     .addModifiers(Modifier.PUBLIC)
+                    //.addSuperinterface(ClassName.bestGuess("IdProvider"))
                     .addField(FieldSpec.builder(ClassName.bestGuess("QueryContext"), "queryContext",Modifier.PRIVATE).build());
 
             if ("Query".equals(type.getName())) {
@@ -152,12 +156,18 @@ public class CodegenVisitor implements SchemaVisitor {
                 classBuilder.addMethod(constructor);
             } else {
                 MethodSpec constructor = MethodSpec.constructorBuilder()
+                        .addModifiers(Modifier.PROTECTED)
                         .addJavadoc("Empty constructor for JSON-B deserialization")
                         .build();
                 classBuilder.addMethod(constructor);
 
                 for (Field scalarField : type.getFields().stream().filter(f -> f.getTypeRef().isScalar()).toList()) {
-                    classBuilder.addField(ClassName.bestGuess(scalarField.getTypeRef().formatOutput()), scalarField.getName(), Modifier.PRIVATE);
+                    if ("id".equals(scalarField.getName())) {
+                        classBuilder.addSuperinterface(ParameterizedTypeName.get(
+                                ClassName.bestGuess("IdProvider"),
+                                scalarField.getTypeRef().formatOutput()));
+                    }
+                    classBuilder.addField(scalarField.getTypeRef().formatOutput(), scalarField.getName(), Modifier.PRIVATE);
                 }
             }
 
@@ -173,18 +183,22 @@ public class CodegenVisitor implements SchemaVisitor {
                     buildFieldArgumentsHelpers(classBuilder, field, type);
                 }
 
-                buildFieldMethod(classBuilder, field, type, schema);
+                if (field.hasOptionalArgs()) {
+                    buildFieldMethod(classBuilder, field, true, schema);
+                }
+                buildFieldMethod(classBuilder, field, false, schema);
             }
 
-            JavaFile javaFile = JavaFile.builder("org.chelonix.dagger.sdk.client", classBuilder.build())
+            JavaFile javaFile = JavaFile.builder("org.chelonix.dagger.client", classBuilder.build())
                     .build();
-
+            writer.write("// This class has been generated by dagger-java-sdk. DO NOT EDIT.\n");
             javaFile.writeTo(writer);
+
             Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
             //com.github.jknack.handlebars.Template tmpl = new Handlebars(new ClassPathTemplateLoader("/templates", ".mustache")).compile("object");
             Map<String, Object> data = new HashMap<>(){{
-                put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", formatTypeName(type));
+                put("packageName", "org.chelonix.dagger.client");
+                put("className", Helpers.formatTypeName(type));
                 put("isClientClass", "Query".equals(type.getName()));
                 put("isArgument", customScalar.containsValue(type.getName()));
                 put("classDescription", type.getDescription());
@@ -197,23 +211,24 @@ public class CodegenVisitor implements SchemaVisitor {
         }
     }
 
-    private void buildFieldMethod(TypeSpec.Builder classBuilder, Field field, Type type, Schema schema) {
+    private static void buildFieldMethod(TypeSpec.Builder classBuilder, Field field, boolean withOptionalArgs, Schema schema) {
         String fieldAlias = field.getName();
         // FIXME Reserved Word
         if ("import".equals(fieldAlias)) {
             fieldAlias = "importTarball";
         }
+
         MethodSpec.Builder fieldMethodBuilder = MethodSpec.methodBuilder(fieldAlias).addModifiers(Modifier.PUBLIC);
-        TypeName returnType = ClassName.bestGuess("id".equals(field.getName()) ? field.getTypeRef().formatOutput() : field.getTypeRef().formatInput());
+        TypeName returnType = "id".equals(field.getName()) ? field.getTypeRef().formatOutput() : field.getTypeRef().formatInput();
         fieldMethodBuilder.returns(returnType);
         List<ParameterSpec> mandatoryParams = field.getRequiredArgs().stream()
                 .map(arg -> ParameterSpec.builder(
-                        ClassName.bestGuess(arg.getType().formatInput()),
+                        arg.getType().formatInput(),
                         arg.getName()).build())
                 .toList();
         fieldMethodBuilder.addParameters(mandatoryParams);
-        if (field.hasOptionalArgs()) {
-            fieldMethodBuilder.addParameter(ClassName.bestGuess(capitalize(fieldAlias) + "Arguments"), "optArgs");
+        if (withOptionalArgs && field.hasOptionalArgs()) {
+            fieldMethodBuilder.addParameter(ClassName.bestGuess(capitalize(field.getName()) + "Arguments"), "optArgs");
         }
         fieldMethodBuilder.addJavadoc(field.getDescription().replace("$", "$$"));
         field.getRequiredArgs().forEach(arg -> fieldMethodBuilder.addJavadoc("\n@param $L $L", arg.getName(), arg.getDescription()));
@@ -224,32 +239,53 @@ public class CodegenVisitor implements SchemaVisitor {
             fieldMethodBuilder.endControlFlow();
         }
         if (field.hasArgs()) {
-            fieldMethodBuilder.addStatement("Map<String, ArgValue> argMap = new HashMap<>()");
+            fieldMethodBuilder.addStatement("Arguments.Builder builder = Arguments.newBuilder()");
         }
-        field.getRequiredArgs().forEach(arg -> fieldMethodBuilder.addStatement("argMap.put(\"$1L\", ArgValue.arg($1L))", arg.getName()));
-        if (field.hasOptionalArgs()) {
-            fieldMethodBuilder.addStatement("argMap.putAll(optArgs.toArguments())");
+        field.getRequiredArgs().forEach(arg -> fieldMethodBuilder.addStatement("builder.add(\"$1L\", $1L)", arg.getName()));
+        if (field.hasArgs()) {
+            fieldMethodBuilder.addStatement("Arguments fieldArgs = builder.build()");
+        }
+        if (withOptionalArgs && field.hasOptionalArgs()) {
+            fieldMethodBuilder.addStatement("fieldArgs = fieldArgs.merge(optArgs.toArguments())");
         }
         if (field.hasArgs()) {
-            fieldMethodBuilder.addStatement("QueryContext ctx = this.queryContext.chain(\"$L\", optArgs)", field.getName());
+            fieldMethodBuilder.addStatement("QueryContext ctx = this.queryContext.chain(\"$L\", fieldArgs)", field.getName());
         } else {
             fieldMethodBuilder.addStatement("QueryContext ctx = this.queryContext.chain(\"$L\")", field.getName());
         }
 
         if (field.getTypeRef().isListOfObject()) {
-            // FIXME return List
             List<Field> arrayFields = Helpers.getArrayField(field, schema);
-            CodeBlock block = arrayFields.stream().map(f -> CodeBlock.of("$S", f.getName())).collect(CodeBlock.joining(",","List.of(", ")"));
+            CodeBlock block = arrayFields.stream().map(f -> CodeBlock.of("$S", f.getName())).collect(CodeBlock.joining(",", "List.of(", ")"));
             fieldMethodBuilder.addStatement("ctx = ctx.chain($L)", block);
             fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)",
                     field.getTypeRef().getListElementType().getName());
+            fieldMethodBuilder
+                    .addException(InterruptedException.class)
+                    .addException(ExecutionException.class)
+                    .addException(ClassName.bestGuess("DaggerQueryException"));
+        } else if (field.getTypeRef().isList()) {
+            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)",
+                    field.getTypeRef().getListElementType().getName());
+            fieldMethodBuilder
+                    .addException(InterruptedException.class)
+                    .addException(ExecutionException.class)
+                    .addException(ClassName.bestGuess("DaggerQueryException"));
         } else if (isIdToConvert(field)) {
             fieldMethodBuilder.addStatement("ctx.executeQuery()");
             fieldMethodBuilder.addStatement("return this");
+            fieldMethodBuilder
+                    .addException(InterruptedException.class)
+                    .addException(ExecutionException.class)
+                    .addException(ClassName.bestGuess("DaggerQueryException"));
         } else if (field.getTypeRef().isObject()) {
             fieldMethodBuilder.addStatement("return new $L(ctx)", returnType);
         } else {
             fieldMethodBuilder.addStatement("return ctx.executeQuery($L.class)", returnType);
+            fieldMethodBuilder
+                    .addException(InterruptedException.class)
+                    .addException(ExecutionException.class)
+                    .addException(ClassName.bestGuess("DaggerQueryException"));
         }
 
         classBuilder.addMethod(fieldMethodBuilder.build());
@@ -266,11 +302,11 @@ public class CodegenVisitor implements SchemaVisitor {
         String fieldArgumentsBuilderClassName = capitalize(field.getName())+"ArgumentsBuilder";
         TypeSpec.Builder fieldArgumentsClassBuilder = TypeSpec
                 .classBuilder(fieldArgumentsClassName)
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
         List<FieldSpec> optionalArgFields = field.getOptionalArgs().stream()
                 .map(arg -> FieldSpec.builder(
-                        ClassName.bestGuess("id".equals(arg.getName()) && "Query".equals(type.getName()) ?
-                                arg.getType().formatOutput() : arg.getType().formatInput()),
+                        "id".equals(arg.getName()) && "Query".equals(type.getName()) ?
+                                arg.getType().formatOutput() : arg.getType().formatInput(),
                         arg.getName()).build())
                 .toList();
         fieldArgumentsClassBuilder.addFields(optionalArgFields);
@@ -279,31 +315,32 @@ public class CodegenVisitor implements SchemaVisitor {
         MethodSpec newBuilder = MethodSpec.methodBuilder("newBuilder")
                 .addModifiers(Modifier.STATIC)
                 .returns(ClassName.bestGuess(fieldArgumentsBuilderClassName))
-                .addCode("$1L args = new $1L()\nreturn new $2L(args);", fieldArgumentsClassName, fieldArgumentsBuilderClassName)
+                .addCode("$1L args = new $1L();\nreturn new $2L(args);", fieldArgumentsClassName, fieldArgumentsBuilderClassName)
                 .build();
         fieldArgumentsClassBuilder.addMethod(newBuilder);
+
         List<CodeBlock> blocks = field.getOptionalArgs().stream()
-                .map(arg -> CodeBlock.of("map.put($1S), ArgValue.arg(this.$1L));", arg.getName()))
+                .map(arg -> CodeBlock.of("builder.add($1S, this.$1L);", arg.getName()))
                 .toList();
         List<MethodSpec> optionalArgFieldGetter = field.getOptionalArgs().stream()
-                .map(arg -> getter(arg.getName(), ClassName.bestGuess("id".equals(arg.getName()) && "Query".equals(type.getName()) ?
+                .map(arg -> getter(arg.getName(), "id".equals(arg.getName()) && "Query".equals(type.getName()) ?
                         arg.getType().formatOutput() :
-                        arg.getType().formatInput())))
+                        arg.getType().formatInput()))
                 .toList();
         fieldArgumentsClassBuilder.addMethods(optionalArgFieldGetter);
 
         MethodSpec toArguments = MethodSpec.methodBuilder("toArguments").addModifiers(Modifier.PUBLIC)
-                .returns(ClassName.bestGuess("java.util.Map<String, ArgValue>"))
-                .addStatement("HashMap<String, ArgValue> map = new HashMap<>()")
+                .returns(ClassName.bestGuess("Arguments"))
+                .addStatement("Arguments.Builder builder = Arguments.newBuilder()")
                 .addCode(CodeBlock.join(blocks, "\n"))
-                .addStatement("\nreturn map")
+                .addStatement("\nreturn builder.build()")
                 .build();
         fieldArgumentsClassBuilder.addMethod(toArguments);
         classBuilder.addType(fieldArgumentsClassBuilder.build());
 
         TypeSpec.Builder fieldArgumentsBuilderClassBuilder = TypeSpec
                 .classBuilder(fieldArgumentsBuilderClassName)
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
         fieldArgumentsBuilderClassBuilder.addField(ClassName.bestGuess(fieldArgumentsClassName), "arguments", Modifier.PRIVATE);
         constructor = MethodSpec.constructorBuilder()
                 .addParameter(ClassName.bestGuess(fieldArgumentsClassName), "arguments")
@@ -313,8 +350,8 @@ public class CodegenVisitor implements SchemaVisitor {
         List<MethodSpec> optionalArgFieldWithMethods = field.getOptionalArgs().stream()
                 .map(arg -> withMethod(
                         arg.getName(),
-                        ClassName.bestGuess("id".equals(arg.getName()) && "Query".equals(type.getName()) ?
-                                arg.getType().formatOutput() : arg.getType().formatInput()),
+                        "id".equals(arg.getName()) && "Query".equals(type.getName()) ?
+                                arg.getType().formatOutput() : arg.getType().formatInput(),
                         ClassName.bestGuess(fieldArgumentsBuilderClassName)))
                 .toList();
         fieldArgumentsBuilderClassBuilder.addMethods(optionalArgFieldWithMethods);
@@ -326,16 +363,6 @@ public class CodegenVisitor implements SchemaVisitor {
 
         classBuilder.addType(fieldArgumentsBuilderClassBuilder.build());
     }
-
-    private static String formatTypeName(Type type) {
-        if ("Query".equals(type.getName())) {
-            return "Client";
-        } else {
-            return capitalize(type.getName());
-        }
-    }
-
-
 
     static final class InputValueContext {
         public String name;
@@ -355,39 +382,11 @@ public class CodegenVisitor implements SchemaVisitor {
 
     @Override
     public void visitInput(Type type) {
-        try (Reader reader = new InputStreamReader(
-                getClass().getClassLoader().getResourceAsStream("templates/input.mustache")))
-        {
-            Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
-            Map<String, Object> data = new HashMap<>(){{
-                put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", formatTypeName(type));
-                put("classDescription", type.getDescription());
-                put("fields", type.getInputFields().stream()
-                        .map(v -> new InputValueContext(v.getName(), v.getDescription(), v.getType().formatOutput()))
-                        .toList());
-            }};
-            System.out.println(tmpl.execute(data));
-        } catch (IOException ioe) {
-            throw new RuntimeException(ioe);
-        }
+        InputVisitor.visit(type, writerProvider);
     }
 
     @Override
     public void visitEnum(Type type) {
-        try (Reader reader = new InputStreamReader(
-                getClass().getClassLoader().getResourceAsStream("templates/enum.mustache")))
-        {
-            Template tmpl = Mustache.compiler().escapeHTML(false).compile(reader);
-            Map<String, Object> data = new HashMap<>(){{
-                put("packageName", "org.chelonix.dagger.sdk.client");
-                put("className", formatTypeName(type));
-                put("classDescription", type.getDescription());
-                put("fields", type.getEnumValues().stream().map(v -> v.getName().toUpperCase()).sorted().toList());
-            }};
-            System.out.println(tmpl.execute(data));
-        } catch (IOException ioe) {
-            throw new RuntimeException(ioe);
-        }
+        EnumVisitor.visit(type, writerProvider);
     }
 }

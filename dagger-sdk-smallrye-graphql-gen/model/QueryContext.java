@@ -44,16 +44,10 @@ class QueryContext {
     }
 
     QueryContext chain(String operation) {
-        return chain(operation, new HashMap<>());
+        return chain(operation, Arguments.noArgs());
     }
 
-    QueryContext chain(String operation, String argName, ArgValue argValue) {
-        return chain(operation, new HashMap<>(){{
-            put(argName, argValue);
-        }});
-    }
-
-    QueryContext chain(String operation, Map<String, ArgValue> arguments) {
+    QueryContext chain(String operation, Arguments arguments) {
         if (leaves != null && !leaves.isEmpty()) {
             throw new IllegalStateException("A new field cannot be chained");
         }
@@ -104,12 +98,12 @@ class QueryContext {
 
     Response executeQuery() throws ExecutionException, InterruptedException {
         Field leafField = parts.pop().toField();
-        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> field(qp.getOperation())).toList());
+        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> Field.field(qp.getOperation())).toList());
         Field operation = parts.stream().map(QueryPart::toField).reduce(leafField, (acc, field) -> {
             field.setFields(List.of(acc));
             return field;
         });
-        Document query = document(operation(operation));
+        Document query = Document.document(Operation.operation(operation));
         System.out.println(String.format("Running query: %s", query.build()));
         return client.executeSync(query);
     }
@@ -119,12 +113,12 @@ class QueryContext {
                 .map(QueryPart::getOperation)
                 .toList();
         Field leafField = parts.pop().toField();
-        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> field(qp.getOperation())).toList());
+        leafField.setFields(leaves.stream().<FieldOrFragment>map(qp -> Field.field(qp.getOperation())).toList());
         Field operation = parts.stream().map(QueryPart::toField).reduce(leafField, (acc, field) -> {
             field.setFields(List.of(acc));
             return field;
         });
-        Document query = document(operation(operation));
+        Document query = Document.document(Operation.operation(operation));
         System.out.println(query.build());
         Response response = client.executeSync(query);
         System.out.println(response);

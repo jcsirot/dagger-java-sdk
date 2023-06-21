@@ -4,9 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.chelonix.dagger.model.ArgValue.*;
-
-public class Container implements ArgValue {
+public class Container implements IdProvider<ContainerID> {
 
     private QueryContext queryCtx;
 
@@ -15,22 +13,26 @@ public class Container implements ArgValue {
     }
 
     public Container from(String address) {
-        QueryContext ctx = queryCtx.chain("from", "address", arg(address));
+        QueryContext ctx = queryCtx.chain("from",
+                Arguments.newBuilder().add("address", address).build());
         return new Container(ctx);
     }
 
     public Container withExec(List<String> args) {
-        QueryContext ctx = queryCtx.chain("withExec", "args", arg(args));
+        QueryContext ctx = queryCtx.chain("withExec",
+                Arguments.newBuilder().add("args", args).build());
         return new Container(ctx);
     }
 
     public Container withExec(String ...args) {
-        QueryContext ctx = queryCtx.chain("withExec", "args", arg(Arrays.asList(args)));
+        QueryContext ctx = queryCtx.chain("withExec",
+                Arguments.newBuilder().add("args", Arrays.asList(args)).build());
         return new Container(ctx);
     }
 
     public Container build(Directory context) {
-        QueryContext ctx = this.queryCtx.chain("build", "context", context);
+        QueryContext ctx = this.queryCtx.chain("build",
+                Arguments.newBuilder().add("context", context).build());
         return new Container(ctx);
     }
 
@@ -45,7 +47,7 @@ public class Container implements ArgValue {
         return this;
     }
 
-    public ContainerID id() throws Exception {
+    public ContainerID id() throws ExecutionException, InterruptedException {
         QueryContext ctx = queryCtx.chain("id");
         return ctx.executeQuery(ContainerID.class);
     }
@@ -54,15 +56,5 @@ public class Container implements ArgValue {
         QueryContext ctx = queryCtx.chain("envVariables");
         ctx = ctx.chain(List.of("name", "value"));
         return ctx.executeListQuery(EnvVariable.class);
-    }
-
-    @Override
-    public Object serialize() throws RuntimeException {
-        try {
-            return this.id().convert();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
     }
 }
