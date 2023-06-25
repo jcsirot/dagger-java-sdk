@@ -1,12 +1,10 @@
 package org.chelonix.dagger.client.engineconn;
 
-import com.ongres.process.FluentProcess;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.annotation.JsonbProperty;
-import org.chelonix.dagger.client.Client;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
