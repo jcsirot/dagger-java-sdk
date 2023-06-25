@@ -32,13 +32,13 @@ class ObjectVisitor extends AbstractVisitor {
                 .addJavadoc(type.getDescription())
                 .addModifiers(Modifier.PUBLIC)
                 //.addSuperinterface(ClassName.bestGuess("IdProvider"))
-                .addField(FieldSpec.builder(ClassName.bestGuess("QueryContext"), "queryContext",Modifier.PRIVATE).build());
+                .addField(FieldSpec.builder(ClassName.bestGuess("QueryBuilder"), "queryBuilder",Modifier.PRIVATE).build());
 
         if ("Query".equals(type.getName())) {
             MethodSpec constructor = MethodSpec.constructorBuilder()
                     .addParameter(ClassName.bestGuess("org.chelonix.dagger.client.engineconn.Connection"), "connection")
                     .addStatement("this.connection = connection")
-                    .addStatement("this.queryContext = new QueryContext(connection.getGraphQLClient())")
+                    .addStatement("this.queryBuilder = new QueryBuilder(connection.getGraphQLClient())")
                     .build();
             classBuilder.addMethod(constructor);
             classBuilder.addField(FieldSpec.builder(
@@ -69,8 +69,8 @@ class ObjectVisitor extends AbstractVisitor {
         }
 
         MethodSpec constructor = MethodSpec.constructorBuilder()
-                .addParameter(ClassName.bestGuess("QueryContext"), "queryContext")
-                .addCode("this.queryContext = queryContext;")
+                .addParameter(ClassName.bestGuess("QueryBuilder"), "queryBuilder")
+                .addCode("this.queryBuilder = queryBuilder;")
                 .build();
         classBuilder.addMethod(constructor);
 
@@ -128,39 +128,39 @@ class ObjectVisitor extends AbstractVisitor {
             fieldMethodBuilder.addStatement("fieldArgs = fieldArgs.merge(optArgs.toArguments())");
         }
         if (field.hasArgs()) {
-            fieldMethodBuilder.addStatement("QueryContext ctx = this.queryContext.chain(\"$L\", fieldArgs)", field.getName());
+            fieldMethodBuilder.addStatement("QueryBuilder nextQueryBuilder = this.queryBuilder.chain(\"$L\", fieldArgs)", field.getName());
         } else {
-            fieldMethodBuilder.addStatement("QueryContext ctx = this.queryContext.chain(\"$L\")", field.getName());
+            fieldMethodBuilder.addStatement("QueryBuilder nextQueryBuilder = this.queryBuilder.chain(\"$L\")", field.getName());
         }
 
         if (field.getTypeRef().isListOfObject()) {
             List<Field> arrayFields = Helpers.getArrayField(field, getSchema());
             CodeBlock block = arrayFields.stream().map(f -> CodeBlock.of("$S", f.getName())).collect(CodeBlock.joining(",", "List.of(", ")"));
-            fieldMethodBuilder.addStatement("ctx = ctx.chain($L)", block);
-            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)",
+            fieldMethodBuilder.addStatement("nextQueryBuilder = nextQueryBuilder.chain($L)", block);
+            fieldMethodBuilder.addStatement("return nextQueryBuilder.executeListQuery($L.class)",
                     field.getTypeRef().getListElementType().getName());
             fieldMethodBuilder
                     .addException(InterruptedException.class)
                     .addException(ExecutionException.class)
                     .addException(ClassName.bestGuess("DaggerQueryException"));
         } else if (field.getTypeRef().isList()) {
-            fieldMethodBuilder.addStatement("return ctx.executeListQuery($L.class)",
+            fieldMethodBuilder.addStatement("return nextQueryBuilder.executeListQuery($L.class)",
                     field.getTypeRef().getListElementType().getName());
             fieldMethodBuilder
                     .addException(InterruptedException.class)
                     .addException(ExecutionException.class)
                     .addException(ClassName.bestGuess("DaggerQueryException"));
         } else if (isIdToConvert(field)) {
-            fieldMethodBuilder.addStatement("ctx.executeQuery()");
+            fieldMethodBuilder.addStatement("nextQueryBuilder.executeQuery()");
             fieldMethodBuilder.addStatement("return this");
             fieldMethodBuilder
                     .addException(InterruptedException.class)
                     .addException(ExecutionException.class)
                     .addException(ClassName.bestGuess("DaggerQueryException"));
         } else if (field.getTypeRef().isObject()) {
-            fieldMethodBuilder.addStatement("return new $L(ctx)", returnType);
+            fieldMethodBuilder.addStatement("return new $L(nextQueryBuilder)", returnType);
         } else {
-            fieldMethodBuilder.addStatement("return ctx.executeQuery($L.class)", returnType);
+            fieldMethodBuilder.addStatement("return nextQueryBuilder.executeQuery($L.class)", returnType);
             fieldMethodBuilder
                     .addException(InterruptedException.class)
                     .addException(ExecutionException.class)

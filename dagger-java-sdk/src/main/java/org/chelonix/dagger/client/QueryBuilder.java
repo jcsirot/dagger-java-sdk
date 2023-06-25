@@ -16,7 +16,6 @@ import org.apache.commons.lang3.reflect.TypeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -27,59 +26,59 @@ import static io.smallrye.graphql.client.core.Document.document;
 import static io.smallrye.graphql.client.core.Field.field;
 import static io.smallrye.graphql.client.core.Operation.operation;
 
-class QueryContext {
+class QueryBuilder {
 
-    static final Logger LOG = LoggerFactory.getLogger(QueryContext.class);
+    static final Logger LOG = LoggerFactory.getLogger(QueryBuilder.class);
 
     private final DynamicGraphQLClient client;
     private final Deque<QueryPart> parts;
     private List<QueryPart> leaves;
 
-    QueryContext(DynamicGraphQLClient client) {
+    QueryBuilder(DynamicGraphQLClient client) {
         this(client, new LinkedList<>());
     }
 
-    private QueryContext(DynamicGraphQLClient client, Deque<QueryPart> parts) {
+    private QueryBuilder(DynamicGraphQLClient client, Deque<QueryPart> parts) {
         this(client, parts, new ArrayList<>());
     }
 
-    private QueryContext(DynamicGraphQLClient client, Deque<QueryPart> parts, List<String> finalFields) {
+    private QueryBuilder(DynamicGraphQLClient client, Deque<QueryPart> parts, List<String> finalFields) {
         this.client = client;
         this.parts = parts;
         this.leaves = finalFields.stream().map(QueryPart::new).toList();
     }
 
-    QueryContext chain(String operation) {
+    QueryBuilder chain(String operation) {
         return chain(operation, Arguments.noArgs());
     }
 
-    QueryContext chain(String operation, Arguments arguments) {
+    QueryBuilder chain(String operation, Arguments arguments) {
         if (leaves != null && !leaves.isEmpty()) {
             throw new IllegalStateException("A new field cannot be chained");
         }
         Deque<QueryPart> list = new LinkedList<>();
         list.addAll(this.parts);
         list.push(new QueryPart(operation, arguments));
-        return new QueryContext(client, list);
+        return new QueryBuilder(client, list);
     }
 
-    public QueryContext chain(String operation, List<String> leaves) {
+    public QueryBuilder chain(String operation, List<String> leaves) {
         if (!this.leaves.isEmpty()) {
             throw new IllegalStateException("A new field cannot be chained");
         }
         Deque<QueryPart> list = new LinkedList<>();
         list.addAll(this.parts);
         list.push(new QueryPart(operation));
-        return new QueryContext(client, list, leaves);
+        return new QueryBuilder(client, list, leaves);
     }
 
-    public QueryContext chain(List<String> leaves) {
+    public QueryBuilder chain(List<String> leaves) {
         if (!this.leaves.isEmpty()) {
             throw new IllegalStateException("A new field cannot be chained");
         }
         Deque<QueryPart> list = new LinkedList<>();
         list.addAll(this.parts);
-        return new QueryContext(client, list, leaves);
+        return new QueryBuilder(client, list, leaves);
     }
 
     <T> T executeQuery(Class<T> klass) throws ExecutionException, InterruptedException, DaggerQueryException {
