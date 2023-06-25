@@ -43,6 +43,11 @@
                 <version>${jakarta.json.bind-api.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.eclipse</groupId>
+                <artifactId>yasson</artifactId>
+                <version>3.0.3</version>
+            </dependency>
+            <dependency>
                 <groupId>com.squareup</groupId>
                 <artifactId>javapoet</artifactId>
                 <version>${javapoet.version}</version>
@@ -67,7 +72,6 @@
                 <artifactId>fluent-process</artifactId>
                 <version>1.0.1</version>
             </dependency>
-
             <dependency>
                 <groupId>org.apache.maven</groupId>
                 <artifactId>maven-plugin-api</artifactId>
@@ -82,6 +86,11 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>2.0.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <version>2.0.7</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven.plugin-tools</groupId>
