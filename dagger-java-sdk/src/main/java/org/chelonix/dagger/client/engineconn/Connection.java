@@ -1,5 +1,6 @@
 package org.chelonix.dagger.client.engineconn;
 
+import com.ongres.process.FluentProcess;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
 import jakarta.json.bind.Jsonb;
@@ -8,14 +9,16 @@ import jakarta.json.bind.annotation.JsonbProperty;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 public final class Connection {
 
     private final DynamicGraphQLClient graphQLClient;
-    private final Process daggerProc;
+    private final FluentProcess daggerProc;
 
-    Connection(DynamicGraphQLClient graphQLClient, Process daggerProc) {
+    Connection(DynamicGraphQLClient graphQLClient, FluentProcess daggerProc) {
         this.graphQLClient = graphQLClient;
         this.daggerProc = daggerProc;
     }
@@ -26,8 +29,7 @@ public final class Connection {
 
     public void close() throws Exception {
         this.graphQLClient.close();
-        this.daggerProc.destroy();
-        this.daggerProc.waitFor();
+        this.daggerProc.close();
     }
 
     public static class ConnectParams {
@@ -71,16 +73,16 @@ public final class Connection {
 
     public static Connection get(String workingDir) throws IOException {
         String bin = getCLIPath();
-        ProcessBuilder pb = new ProcessBuilder(bin, "session",
+        FluentProcess process = FluentProcess.start(bin, "session",
                 "--workdir", workingDir,
                 "--label", "dagger.io/sdk.name:java",
-                "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION);
-        Process process = pb.start();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION)
+                .withAllowedExitCodes(137);
         Jsonb jsonb = JsonbBuilder.create();
-        ConnectParams connectParams = jsonb.fromJson(reader.readLine(), ConnectParams.class);
+        String output = process.streamStdout().findFirst().get();
+        System.out.println(output);
+        ConnectParams connectParams = jsonb.fromJson(output, ConnectParams.class);
         // System.out.println(connectParams);
-
         int port = connectParams.getPort();
         String token = connectParams.getSessionToken();
 
