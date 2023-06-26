@@ -20,6 +20,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.TimeUnit;
 
 @Mojo(name = "codegen",
         defaultPhase = LifecyclePhase.GENERATE_SOURCES,
@@ -47,6 +48,9 @@ public class DaggerCodegenMojo extends AbstractMojo {
 
     @Parameter(property = "dagger.introspectionQuertyURL")
     protected String introspectionQuertyURL;
+
+    @Parameter(property = "dagger.introspectionQuertyPath")
+    protected String introspectionQuertyPath;
 
     /**
      * Specify output directory where the Java files are generated.
@@ -99,6 +103,8 @@ public class DaggerCodegenMojo extends AbstractMojo {
             });
         } catch (IOException ioe) {
             throw new MojoFailureException(ioe);
+        } catch (InterruptedException ie) {
+            throw new MojoFailureException(ie);
         }
 
         if (project != null) {
@@ -107,14 +113,17 @@ public class DaggerCodegenMojo extends AbstractMojo {
         }
     }
 
-    private InputStream daggerSchema() throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+    private InputStream daggerSchema() throws IOException, InterruptedException {
+        if (introspectionQuertyPath != null) {
+            return new FileInputStream(introspectionQuertyPath);
+        }
         URL url;
         if (introspectionQuertyURL == null) {
             url = new URL(String.format("https://raw.githubusercontent.com/dagger/dagger/v%s/codegen/introspection/introspection.graphql", version));
         } else {
             url = new URL(introspectionQuertyURL);
         }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         FluentProcess.start(bin, "query")
                 .withTimeout(Duration.of(60, ChronoUnit.SECONDS))
                 .inputStream(url.openStream())
