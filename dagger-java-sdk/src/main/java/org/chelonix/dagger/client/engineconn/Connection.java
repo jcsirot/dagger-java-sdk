@@ -2,24 +2,25 @@ package org.chelonix.dagger.client.engineconn;
 
 import com.ongres.process.FluentProcess;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
-import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClientBuilder;
+import io.smallrye.graphql.client.vertx.dynamic.VertxDynamicGraphQLClientBuilder;
+import io.vertx.core.Vertx;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.annotation.JsonbProperty;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 public final class Connection {
 
     private final DynamicGraphQLClient graphQLClient;
+    private final Vertx vertx;
     private final FluentProcess daggerProc;
 
-    Connection(DynamicGraphQLClient graphQLClient, FluentProcess daggerProc) {
+    Connection(DynamicGraphQLClient graphQLClient, Vertx vertx, FluentProcess daggerProc) {
         this.graphQLClient = graphQLClient;
+        this.vertx = vertx;
         this.daggerProc = daggerProc;
     }
 
@@ -29,6 +30,7 @@ public final class Connection {
 
     public void close() throws Exception {
         this.graphQLClient.close();
+        this.vertx.close();
         this.daggerProc.close();
     }
 
@@ -86,12 +88,15 @@ public final class Connection {
         int port = connectParams.getPort();
         String token = connectParams.getSessionToken();
 
+        Vertx vertx = Vertx.vertx();
         String encodedToken = Base64.getEncoder().encodeToString((token + ":").getBytes(StandardCharsets.UTF_8));
-        DynamicGraphQLClient dynamicGraphQLClient = DynamicGraphQLClientBuilder.newBuilder()
+
+        DynamicGraphQLClient dynamicGraphQLClient = new VertxDynamicGraphQLClientBuilder()
+                .vertx(vertx)
                 .url(String.format("http://127.0.0.1:%d/query", port))
                 .header("authorization", "Basic " + encodedToken)
                 .build();
 
-        return new Connection(dynamicGraphQLClient, process);
+        return new Connection(dynamicGraphQLClient, vertx, process);
     }
 }

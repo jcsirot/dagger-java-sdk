@@ -20,6 +20,5 @@ public class CreateAndUseSecret {
             // print result
             System.out.println(out);
         }
-        System.exit(0);
     }
 }

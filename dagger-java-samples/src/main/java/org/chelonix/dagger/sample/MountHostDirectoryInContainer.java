@@ -15,6 +15,5 @@ public class MountHostDirectoryInContainer {
 
             System.out.println(contents);
         }
-        System.exit(0);
     }
 }

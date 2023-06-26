@@ -15,6 +15,5 @@ public class ListEnvVars {
                 System.out.printf("%s = %s\n", var.name(), var.value());
             }
         }
-        System.exit(0);
     }
 }

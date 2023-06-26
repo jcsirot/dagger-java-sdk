@@ -14,6 +14,5 @@ public class GetGitVersion {
             String stdout = daggerImg.withExec(List.of("version")).stdout();
             System.out.println(stdout);
         }
-        System.exit(0);
     }
 }

@@ -12,6 +12,5 @@ public class ListHostDirectoryContents {
             List<String> entries = client.host().directory(".").entries();
             entries.stream().forEach(System.out::println);
         }
-        System.exit(0);
     }
 }

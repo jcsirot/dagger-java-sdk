@@ -16,6 +16,5 @@ public class SimpleContainer {
             String version = container.stdout();
             System.out.println("Hello from Dagger and " + version);
         }
-        System.exit(0);
     }
 }
