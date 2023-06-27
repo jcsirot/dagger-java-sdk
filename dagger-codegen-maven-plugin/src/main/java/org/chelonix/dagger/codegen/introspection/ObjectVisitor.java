@@ -7,6 +7,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.UnaryOperator;
 
 import static org.apache.commons.lang3.StringUtils.capitalize;
 import static org.chelonix.dagger.codegen.introspection.Helpers.isIdToConvert;
@@ -85,6 +86,14 @@ class ObjectVisitor extends AbstractVisitor {
             }
             buildFieldMethod(classBuilder, field, false);
         }
+
+        ClassName thisType = ClassName.bestGuess(Helpers.formatTypeName(type));
+        classBuilder.addMethod(MethodSpec.methodBuilder("with")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(ParameterizedTypeName.get(ClassName.get(UnaryOperator.class), thisType), "fun")
+                .returns(thisType)
+                .addStatement("return fun.apply(this)")
+                .build());
 
         return classBuilder.build();
     }
