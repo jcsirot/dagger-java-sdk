@@ -11,6 +11,7 @@ import jakarta.json.bind.annotation.JsonbProperty;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Optional;
 
 public final class Connection {
 
@@ -73,7 +74,24 @@ public final class Connection {
         return cliBinPath;
     }
 
-    public static Connection get(String workingDir) throws IOException {
+    private static Optional<Connection> fromEnv() {
+        String portStr = System.getenv("DAGGER_SESSION_PORT");
+        if (portStr == null) {
+            return Optional.empty();
+        }
+        try {
+            int port = Integer.parseInt(portStr);
+            String token = System.getenv("DAGGER_SESSION_TOKEN");
+            if (token == null) {
+                throw new IllegalArgumentException("DAGGER_SESSION_TOKEN is required when using DAGGER_SESSION_PORT");
+            }
+            return Optional.of(getConnection(port, token, null));
+        } catch (NumberFormatException nfe) {
+            throw new IllegalArgumentException("invalid port in DAGGER_SESSION_PORT", nfe);
+        }
+    }
+
+    private static Connection fromCLI(String workingDir) throws IOException {
         String bin = getCLIPath();
         FluentProcess process = FluentProcess.start(bin, "session",
                 "--workdir", workingDir,
@@ -82,15 +100,17 @@ public final class Connection {
                 .withAllowedExitCodes(137);
         Jsonb jsonb = JsonbBuilder.create();
         String output = process.streamStdout().findFirst().get();
-        System.out.println(output);
         ConnectParams connectParams = jsonb.fromJson(output, ConnectParams.class);
-        // System.out.println(connectParams);
-        int port = connectParams.getPort();
-        String token = connectParams.getSessionToken();
+        return getConnection(connectParams.getPort(), connectParams.getSessionToken(), process);
+    }
 
+    public static Connection get(String workingDir) throws IOException {
+        return fromEnv().orElse(fromCLI(workingDir));
+    }
+
+    private static Connection getConnection(int port, String token, FluentProcess process) {
         Vertx vertx = Vertx.vertx();
         String encodedToken = Base64.getEncoder().encodeToString((token + ":").getBytes(StandardCharsets.UTF_8));
-
         DynamicGraphQLClient dynamicGraphQLClient = new VertxDynamicGraphQLClientBuilder()
                 .vertx(vertx)
                 .url(String.format("http://127.0.0.1:%d/query", port))
