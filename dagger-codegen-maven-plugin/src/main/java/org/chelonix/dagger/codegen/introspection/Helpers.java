@@ -69,11 +69,19 @@ public class Helpers {
         return schemaType.getFields().stream().filter(f -> f.getTypeRef().isScalar()).toList();
     }
 
-    static String formatTypeName(Type type) {
+    static String formatName(Type type) {
         if ("Query".equals(type.getName())) {
             return "Client";
         } else {
             return capitalize(type.getName());
+        }
+    }
+
+    static String formatName(Field field) {
+        if ("Container".equals(field.getParentObject().getName()) && "import".equals(field.getName())) {
+            return "importTarball";
+        } else {
+            return field.getName();
         }
     }
 
@@ -92,5 +100,12 @@ public class Helpers {
                 .addParameter(ParameterSpec.builder(type, var).build())
                 .addStatement("this.$1L = $1L", var)
                 .build();
+    }
+
+    /**
+     * Fix using '$' char in javadoc
+      */
+    static String escapeJavadoc(String str) {
+        return str.replace("$", "$$");
     }
 }
