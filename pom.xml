@@ -43,11 +43,6 @@
                 <version>${jakarta.json.bind-api.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.eclipse</groupId>
-                <artifactId>yasson</artifactId>
-                <version>3.0.3</version>
-            </dependency>
-            <dependency>
                 <groupId>com.squareup</groupId>
                 <artifactId>javapoet</artifactId>
                 <version>${javapoet.version}</version>
@@ -60,17 +55,17 @@
             <dependency>
                 <groupId>net.kothar</groupId>
                 <artifactId>xdg-java</artifactId>
-                <version>0.1.1</version>
+                <version>${xdg-java.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
-                <version>1.21</version>
+                <version>${commons-compress.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.ongres</groupId>
                 <artifactId>fluent-process</artifactId>
-                <version>1.0.1</version>
+                <version>${fluent-process.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven</groupId>
@@ -140,17 +135,18 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <graphql-java.version>20.2</graphql-java.version>
-        <smallrye-graphql.version>2.2.0</smallrye-graphql.version>
-        <jakarta.json-api.version>2.1.2</jakarta.json-api.version>
+        <commons-compress.version>1.21</commons-compress.version>
         <commons-lang.version>3.12.0</commons-lang.version>
-        <tree.version>0.2.5</tree.version>
-        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
-        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
-        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
+        <fluent-process.version>1.0.1</fluent-process.version>
+        <jakarta.json-api.version>2.1.2</jakarta.json-api.version>
+        <jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
         <javapoet.version>1.13.0</javapoet.version>
         <junit.version>5.9.3</junit.version>
-        <jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
+        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
+        <smallrye-graphql.version>2.2.1</smallrye-graphql.version>
+        <xdg-java.version>0.1.1</xdg-java.version>
     </properties>
 
 </project>
