@@ -14,7 +14,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class Connection {
 
@@ -37,7 +38,7 @@ public final class Connection {
     public void close() throws Exception {
         this.graphQLClient.close();
         this.vertx.close();
-        //this.daggerProc.ifPresent(FluentProcess::close);
+        this.daggerProc.ifPresent(FluentProcess::close);
     }
 
     private static class CLIRunner implements Runnable {
@@ -67,15 +68,22 @@ public final class Connection {
         @Override
         public void run() {
             process = process.withoutCloseAfterLast();
-            process.streamOutputLines().forEach(line -> {
-                if (line.isStdout() && line.line().contains("session_token")) {
-                    Jsonb jsonb = JsonbBuilder.create();
-                    ConnectParams connectParams = jsonb.fromJson(line.line(), ConnectParams.class);
-                    setParams(connectParams);
-                } else {
-                    LOG.info(line.line());
+            try {
+                process.streamOutputLines().forEach(line -> {
+                    if (line.isStdout() && line.line().contains("session_token")) {
+                        Jsonb jsonb = JsonbBuilder.create();
+                        ConnectParams connectParams = jsonb.fromJson(line.line(), ConnectParams.class);
+                        setParams(connectParams);
+                    } else {
+                        LOG.info(line.line());
+                    }
+                });
+            } catch (RuntimeException e) {
+                if (! (e.getCause() instanceof IOException
+                        && "Stream closed".equals(e.getCause().getMessage()))) {
+                    throw e;
                 }
-            });
+            }
         }
     }
 
@@ -142,14 +150,9 @@ public final class Connection {
                 "--label", "dagger.io/sdk.name:java",
                 "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION)
                 .withAllowedExitCodes(137);
-        // Jsonb jsonb = JsonbBuilder.create();
-        // String output = process.streamStdout().findFirst().get();
-        // ConnectParams connectParams = jsonb.fromJson(output, ConnectParams.class);
         CLIRunner cliRunner = new CLIRunner(process);
-        Thread t = new Thread(cliRunner);
-        t.setName("dagger-runner");
-        t.setDaemon(true);
-        t.start();
+        ExecutorService executorService = Executors.newSingleThreadExecutor(r -> new Thread(r, "dagger-runner"));
+        executorService.execute(cliRunner);
         ConnectParams connectParams = cliRunner.getConnectionParams();
         return getConnection(connectParams.getPort(), connectParams.getSessionToken(), Optional.of(process));
     }
