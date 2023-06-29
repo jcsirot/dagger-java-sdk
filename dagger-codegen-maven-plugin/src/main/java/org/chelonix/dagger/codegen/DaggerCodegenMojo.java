@@ -52,6 +52,10 @@ public class DaggerCodegenMojo extends AbstractMojo {
     @Parameter(property = "dagger.introspectionQuertyPath")
     protected String introspectionQuertyPath;
 
+    @Parameter(property = "dagger.regenerateSchema", defaultValue = "false")
+    protected boolean online;
+
+
     /**
      * Specify output directory where the Java files are generated.
      */
@@ -113,20 +117,31 @@ public class DaggerCodegenMojo extends AbstractMojo {
         }
     }
 
-    private InputStream daggerSchema() throws IOException, InterruptedException {
+    private InputStream daggerSchema() throws IOException, InterruptedException, MojoFailureException {
+        if (!online) {
+            InputStream in = getClass().getClassLoader().getResourceAsStream(String.format("schemas/schema-v%s.json", version));
+            if (in == null) {
+                throw new MojoFailureException(String.format("GraphQL schema not available for version %s", version));
+            }
+            return in;
+        }
         if (introspectionQuertyPath != null) {
             return new FileInputStream(introspectionQuertyPath);
         }
-        URL url;
-        if (introspectionQuertyURL == null) {
-            url = new URL(String.format("https://raw.githubusercontent.com/dagger/dagger/v%s/codegen/introspection/introspection.graphql", version));
+        InputStream in;
+        if (introspectionQuertyPath != null) {
+            return new FileInputStream(introspectionQuertyPath);
+        } else if (introspectionQuertyURL == null) {
+            in = new URL(String.format("https://raw.githubusercontent.com/dagger/dagger/v%s/codegen/introspection/introspection.graphql", version)).openStream();
+        } else if (introspectionQuertyURL != null) {
+            in = new URL(introspectionQuertyURL).openStream();
         } else {
-            url = new URL(introspectionQuertyURL);
+            throw new MojoFailureException("Could not locate, download or generate GraphQL schema");
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         FluentProcess.start(bin, "query")
                 .withTimeout(Duration.of(60, ChronoUnit.SECONDS))
-                .inputStream(url.openStream())
+                .inputStream(in)
                 .writeToOutputStream(out);
         return new ByteArrayInputStream(out.toByteArray());
     }
