@@ -1,6 +1,6 @@
 # dagger-java-sdk
 
-A [Dagger.io](https://dagger.io) SDK written in java for java.
+A [Dagger.io](https://dagger.io) SDK written in Java.
 
 > **Warning**
 > This project is still a Work in Progress
@@ -9,13 +9,17 @@ A [Dagger.io](https://dagger.io) SDK written in java for java.
 
 ### Requirements
 
-- Java 17
+- Java 17+
 
-Simply run maven to build the jars and install them in your local `${HOME}/.m2` repository
+### Build
+
+Simply run maven to build the jars, run all tests (unit and integration) and install them in your local `${HOME}/.m2` repository
 
 ```bash
 ./mvnw clean install 
 ```
+
+### Javadoc
 
 To generate the Javadoc (site and jar), use the `javadoc` profile.
 The javadoc are built in `./dagger-java-sdk/target/apidocs/index.html`
@@ -36,7 +40,7 @@ in your project's `pom.xml` add the dependency
   </dependency>
 ```
 
-An code sample using the Dagger client
+Here is a code snippet using the Dagger client
 
 ```java
 package org.chelonix.dagger.sample;

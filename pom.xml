@@ -100,6 +100,16 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito-core.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -115,6 +125,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${maven-compiler-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${maven-failsafe-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -135,6 +150,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <assertj-core.version>3.24.2</assertj-core.version>
         <commons-compress.version>1.21</commons-compress.version>
         <commons-lang.version>3.12.0</commons-lang.version>
         <fluent-process.version>1.0.1</fluent-process.version>
@@ -143,10 +159,12 @@
         <javapoet.version>1.13.0</javapoet.version>
         <junit.version>5.9.3</junit.version>
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-failsafe-plugin.version>3.0.0</maven-failsafe-plugin.version>
         <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
         <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
         <smallrye-graphql.version>2.2.1</smallrye-graphql.version>
         <xdg-java.version>0.1.1</xdg-java.version>
+        <mockito-core.version>5.2.0</mockito-core.version>
     </properties>
 
 </project>

@@ -1,6 +1,8 @@
 package org.chelonix.dagger.client;
 
 import io.smallrye.graphql.client.core.Argument;
+import io.smallrye.graphql.client.core.InputObject;
+import io.smallrye.graphql.client.core.InputObjectField;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,6 +11,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static io.smallrye.graphql.client.core.Argument.arg;
+import static io.smallrye.graphql.client.core.InputObject.inputObject;
+import static io.smallrye.graphql.client.core.InputObjectField.prop;
 
 public class Arguments {
 
@@ -49,7 +53,9 @@ public class Arguments {
     }
 
     private Object toArgumentValue(Object value) throws ExecutionException, InterruptedException, DaggerQueryException {
-        if (value instanceof Scalar<?>) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Scalar<?>) {
             return ((Scalar<?>) value).convert();
         } else if (value instanceof IdProvider<?>) {
             Object id = ((IdProvider<?>) value).id();
@@ -59,7 +65,7 @@ public class Arguments {
                 return id;
             }
         } else if (value instanceof InputValue) {
-            return ((InputValue) value).toMap();
+            return inputObject(((InputValue) value).toMap().entrySet().stream().map(e -> prop(e.getKey(), e.getValue())).toArray(InputObjectField[]::new));
         } else if (value instanceof String || value instanceof Integer || value instanceof Long || value instanceof Boolean ) {
             return value;
         } else if (value instanceof List<?>) {
