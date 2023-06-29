@@ -144,7 +144,7 @@ public final class Connection {
     }
 
     private static Connection fromCLI(String workingDir) throws IOException {
-        String bin = "dagger"; //getCLIPath();
+        String bin = getCLIPath();
         FluentProcess process = FluentProcess.start(bin, "session",
                 "--workdir", workingDir,
                 "--label", "dagger.io/sdk.name:java",
