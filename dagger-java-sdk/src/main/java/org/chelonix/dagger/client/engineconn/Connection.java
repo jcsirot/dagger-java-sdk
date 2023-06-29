@@ -7,19 +7,24 @@ import io.vertx.core.Vertx;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.annotation.JsonbProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public final class Connection {
 
+    static final Logger LOG = LoggerFactory.getLogger(Connection.class);
+
     private final DynamicGraphQLClient graphQLClient;
     private final Vertx vertx;
-    private final FluentProcess daggerProc;
+    private final Optional<FluentProcess> daggerProc;
 
-    Connection(DynamicGraphQLClient graphQLClient, Vertx vertx, FluentProcess daggerProc) {
+    Connection(DynamicGraphQLClient graphQLClient, Vertx vertx, Optional<FluentProcess> daggerProc) {
         this.graphQLClient = graphQLClient;
         this.vertx = vertx;
         this.daggerProc = daggerProc;
@@ -32,7 +37,46 @@ public final class Connection {
     public void close() throws Exception {
         this.graphQLClient.close();
         this.vertx.close();
-        this.daggerProc.close();
+        //this.daggerProc.ifPresent(FluentProcess::close);
+    }
+
+    private static class CLIRunner implements Runnable {
+                ;
+        private FluentProcess process;
+        private ConnectParams params;
+
+        public CLIRunner(FluentProcess process) {
+            this.process = process;
+        }
+
+        synchronized ConnectParams getConnectionParams() {
+            while (params == null) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                }
+            }
+            return params;
+        }
+
+        synchronized void setParams(ConnectParams params) {
+            this.params = params;
+            notifyAll();
+        }
+
+        @Override
+        public void run() {
+            process = process.withoutCloseAfterLast();
+            process.streamOutputLines().forEach(line -> {
+                if (line.isStdout() && line.line().contains("session_token")) {
+                    Jsonb jsonb = JsonbBuilder.create();
+                    ConnectParams connectParams = jsonb.fromJson(line.line(), ConnectParams.class);
+                    setParams(connectParams);
+                } else {
+                    LOG.info(line.line());
+                }
+            });
+        }
     }
 
     public static class ConnectParams {
@@ -85,30 +129,36 @@ public final class Connection {
             if (token == null) {
                 throw new IllegalArgumentException("DAGGER_SESSION_TOKEN is required when using DAGGER_SESSION_PORT");
             }
-            return Optional.of(getConnection(port, token, null));
+            return Optional.of(getConnection(port, token, Optional.empty()));
         } catch (NumberFormatException nfe) {
             throw new IllegalArgumentException("invalid port in DAGGER_SESSION_PORT", nfe);
         }
     }
 
     private static Connection fromCLI(String workingDir) throws IOException {
-        String bin = getCLIPath();
+        String bin = "dagger"; //getCLIPath();
         FluentProcess process = FluentProcess.start(bin, "session",
                 "--workdir", workingDir,
                 "--label", "dagger.io/sdk.name:java",
                 "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION)
                 .withAllowedExitCodes(137);
-        Jsonb jsonb = JsonbBuilder.create();
-        String output = process.streamStdout().findFirst().get();
-        ConnectParams connectParams = jsonb.fromJson(output, ConnectParams.class);
-        return getConnection(connectParams.getPort(), connectParams.getSessionToken(), process);
+        // Jsonb jsonb = JsonbBuilder.create();
+        // String output = process.streamStdout().findFirst().get();
+        // ConnectParams connectParams = jsonb.fromJson(output, ConnectParams.class);
+        CLIRunner cliRunner = new CLIRunner(process);
+        Thread t = new Thread(cliRunner);
+        t.setName("dagger-runner");
+        t.setDaemon(true);
+        t.start();
+        ConnectParams connectParams = cliRunner.getConnectionParams();
+        return getConnection(connectParams.getPort(), connectParams.getSessionToken(), Optional.of(process));
     }
 
     public static Connection get(String workingDir) throws IOException {
         return fromEnv().orElse(fromCLI(workingDir));
     }
 
-    private static Connection getConnection(int port, String token, FluentProcess process) {
+    private static Connection getConnection(int port, String token, Optional<FluentProcess> process) {
         Vertx vertx = Vertx.vertx();
         String encodedToken = Base64.getEncoder().encodeToString((token + ":").getBytes(StandardCharsets.UTF_8));
         DynamicGraphQLClient dynamicGraphQLClient = new VertxDynamicGraphQLClientBuilder()
