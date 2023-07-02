@@ -46,9 +46,9 @@ public final class Connection {
             } catch (NumberFormatException nfe) {
                 LOG.error("invalid port value in DAGGER_SESSION_PORT", nfe);
             }
-        } else if (portStr == null) {
+        } else if (portStr != null) {
             LOG.error("DAGGER_SESSION_TOKEN is required when using DAGGER_SESSION_PORT");
-        } else if (sessionToken == null) {
+        } else if (sessionToken != null) {
             LOG.error("DAGGER_SESSION_PORT is required when using DAGGER_SESSION_TOKEN");
         }
         return Optional.empty();
