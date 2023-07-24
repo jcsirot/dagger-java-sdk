@@ -16,7 +16,8 @@ class CLIRunner implements Runnable {
 
     static final Logger LOG = LoggerFactory.getLogger(CLIRunner.class);
 
-    private final FluentProcess process;
+    private final String workingDir;
+    private FluentProcess process;
     private ConnectParams params;
     private boolean failed = false;
     private final ExecutorService executorService;
@@ -29,13 +30,8 @@ class CLIRunner implements Runnable {
         return cliBinPath;
     }
 
-    public CLIRunner(String workingDir) throws IOException {
-        String bin = getCLIPath();
-        this.process = FluentProcess.start(bin, "session",
-                        "--workdir", workingDir,
-                        "--label", "dagger.io/sdk.name:java",
-                        "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION)
-                .withAllowedExitCodes(137);
+    CLIRunner(String workingDir) throws IOException {
+        this.workingDir = workingDir;
         this.executorService = Executors.newSingleThreadExecutor(r -> new Thread(r, "dagger-runner"));
 
     }
@@ -59,19 +55,34 @@ class CLIRunner implements Runnable {
     }
 
 
-    synchronized void setParams(ConnectParams params) {
+    private synchronized void setParams(ConnectParams params) {
         this.params = params;
         notifyAll();
     }
 
-    public void start() {
+    private synchronized void setProcess(FluentProcess process) {
+        this.process = process;
+        notifyAll();
+    }
+
+    private synchronized FluentProcess getProcess() {
+        return process;
+    }
+
+    void start() throws IOException {
+        String bin = getCLIPath();
+        setProcess(FluentProcess.start(bin, "session",
+                        "--workdir", this.workingDir,
+                        "--label", "dagger.io/sdk.name:java",
+                        "--label", "dagger.io/sdk.version:" + CLIDownloader.CLI_VERSION)
+                .withAllowedExitCodes(137));
         executorService.execute(this);
     }
 
     @Override
     public void run() {
         try {
-            process.streamOutputLines().forEach(line -> {
+            getProcess().streamOutputLines().forEach(line -> {
                 if (line.isStdout() && line.line().contains("session_token")) {
                     try (JsonReader reader = Json.createReader(new StringReader(line.line()))) {
                         JsonObject obj = reader.readObject();
@@ -93,7 +104,7 @@ class CLIRunner implements Runnable {
         }
     }
 
-    public void shutdown() {
+    public synchronized void shutdown() {
         executorService.shutdown();
         process.close();
     }
