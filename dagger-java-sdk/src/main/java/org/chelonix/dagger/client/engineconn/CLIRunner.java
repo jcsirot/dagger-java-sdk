@@ -30,13 +30,13 @@ class CLIRunner implements Runnable {
         return cliBinPath;
     }
 
-    public CLIRunner(String workingDir) throws IOException {
+    CLIRunner(String workingDir) throws IOException {
         this.workingDir = workingDir;
         this.executorService = Executors.newSingleThreadExecutor(r -> new Thread(r, "dagger-runner"));
 
     }
 
-    public synchronized ConnectParams getConnectionParams() throws IOException {
+    synchronized ConnectParams getConnectionParams() throws IOException {
         while (params == null) {
             try {
                 if (failed) {
@@ -69,7 +69,7 @@ class CLIRunner implements Runnable {
         return process;
     }
 
-    public void start() throws IOException {
+    void start() throws IOException {
         String bin = getCLIPath();
         setProcess(FluentProcess.start(bin, "session",
                         "--workdir", this.workingDir,
