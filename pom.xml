@@ -6,7 +6,7 @@
 
     <groupId>org.chelonix.dagger</groupId>
     <artifactId>dagger-sdk-parent</artifactId>
-    <version>0.6.2-SNAPSHOT</version>
+    <version>0.6.4-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
